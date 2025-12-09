@@ -9,7 +9,8 @@
     "dev:admin": "cd admin && npm run dev",
     "build": "cd admin && npm install && npm run build",
     "build:admin": "cd admin && npm run build",
-    "start": "npm run build && cd server && node index.js",
+    "install:all": "npm install && cd admin && npm install",
+    "start": "cd server && node index.js",
     "postinstall": "cd admin && npm install"
   },
   "keywords": ["digital-signage", "android", "tv", "video"],
