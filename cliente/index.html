@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>ProntoTV - Cliente</title>
+    <link rel="stylesheet" href="styles.css?v=13">
+</head>
+<body>
+    <div id="app">
+        <!-- Estado de conexión -->
+        <div id="status" class="status offline">
+            <span id="status-text">Conectando...</span>
+        </div>
+
+        <!-- Pantalla principal con logo -->
+        <div id="splash-screen" class="splash-screen">
+            <div class="splash-content">
+                <img src="logo.png" alt="ProntoTV" class="logo" id="logo-img" onerror="this.style.display='none'" style="max-width: 200px !important; width: 200px !important; filter: brightness(0) invert(1) !important;">
+                <div class="splash-text">
+                    <p id="splash-message">Cargando contenido...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Reproductor de video -->
+        <div id="video-container" class="media-container hidden">
+            <video 
+                id="video-player" 
+                autoplay 
+                muted 
+                playsinline
+                loop
+                preload="auto"
+                webkit-playsinline="true"
+                x-webkit-airplay="allow"
+            >
+                Tu navegador no soporta video HTML5.
+            </video>
+            <!-- Botón para activar audio si está bloqueado -->
+            <div id="audio-unmute-btn" class="audio-unmute-btn hidden" onclick="unmuteVideo()">
+                🔊 Activar Audio
+            </div>
+        </div>
+
+        <!-- Carrusel de imágenes -->
+        <div id="carousel-container" class="media-container hidden">
+            <div id="carousel" class="carousel">
+                <img id="carousel-image" src="" alt="Imagen">
+            </div>
+            <div id="carousel-indicators" class="carousel-indicators"></div>
+        </div>
+
+        <!-- Imágenes aleatorias -->
+        <div id="random-images-container" class="media-container hidden">
+            <img id="random-image" src="" alt="Imagen aleatoria">
+        </div>
+
+        <!-- Pantalla de espera -->
+        <div id="waiting-screen" class="waiting-screen hidden">
+            <div class="waiting-content">
+                <img src="logo.png" alt="ProntoTV" class="logo-small" onerror="this.style.display='none'">
+                <div class="spinner"></div>
+                <h2>Esperando contenido...</h2>
+                <p id="waiting-message">Sincronizando con el servidor</p>
+            </div>
+        </div>
+
+        <!-- Mensaje de error -->
+        <div id="error-screen" class="error-screen hidden">
+            <div class="error-content">
+                <img src="logo.png" alt="ProntoTV" class="logo-small" onerror="this.style.display='none'">
+                <h2>⚠️ Error de conexión</h2>
+                <p id="error-message">No se pudo conectar al servidor</p>
+                <button id="retry-btn" class="retry-btn">Reintentar</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

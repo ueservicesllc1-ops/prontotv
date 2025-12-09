@@ -1,0 +1,16 @@
+node_modules/
+dist/
+build/
+*.log
+.env
+.DS_Store
+database.db
+database.db-journal
+.vscode/
+.idea/
+*.apk
+*.aab
+firebase-service-account.json
+service-account-key.json
+**/*firebase-adminsdk*.json
+public/*.json
