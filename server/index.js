@@ -12,9 +12,36 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
-app.use(cors());
+// Configurar CORS con dominios permitidos
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+  ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
+  : ['http://localhost:3000', 'http://localhost:5173'];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // Permitir requests sin origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes('*')) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
+}));
 app.use(bodyParser.json());
-app.use(express.static(path.join(__dirname, '../admin/dist')));
+
+// Servir admin solo si existe el directorio dist
+const fs = require('fs');
+const adminDistPath = path.join(__dirname, '../admin/dist');
+if (fs.existsSync(adminDistPath)) {
+  app.use(express.static(adminDistPath));
+  console.log('✅ Admin panel disponible en /admin/dist');
+} else {
+  console.warn('⚠️ Admin panel no compilado. Ejecuta: npm run build');
+}
+
 // Servir cliente en /client
 app.use('/client', express.static(path.join(__dirname, '../cliente')));
 
@@ -1025,7 +1052,23 @@ app.delete('/api/b2/files/:key', async (req, res) => {
 // Servir admin en todas las rutas no-API
 app.get('*', (req, res) => {
   if (!req.path.startsWith('/api')) {
-    res.sendFile(path.join(__dirname, '../admin/dist/index.html'));
+    const adminPath = path.join(__dirname, '../admin/dist/index.html');
+    const fs = require('fs');
+    if (fs.existsSync(adminPath)) {
+      res.sendFile(adminPath);
+    } else {
+      res.status(404).send(`
+        <html>
+          <head><title>Admin Panel</title></head>
+          <body style="font-family: Arial; padding: 40px; text-align: center;">
+            <h1>Admin Panel no disponible</h1>
+            <p>El panel de administración no ha sido compilado.</p>
+            <p>Ejecuta: <code>npm run build</code> para compilar el admin.</p>
+            <p>API disponible en: <a href="/api/health">/api/health</a></p>
+          </body>
+        </html>
+      `);
+    }
   }
 });
 

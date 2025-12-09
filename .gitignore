@@ -14,3 +14,7 @@ firebase-service-account.json
 service-account-key.json
 **/*firebase-adminsdk*.json
 public/*.json
+railway-env-variables-complete.json
+*.env
+.env.local
+.env.production

@@ -7,8 +7,10 @@
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:admin\"",
     "dev:server": "cd server && nodemon index.js",
     "dev:admin": "cd admin && npm run dev",
+    "build": "cd admin && npm install && npm run build",
     "build:admin": "cd admin && npm run build",
-    "start": "cd server && node index.js"
+    "start": "npm run build && cd server && node index.js",
+    "postinstall": "cd admin && npm install"
   },
   "keywords": ["digital-signage", "android", "tv", "video"],
   "author": "",

@@ -1,0 +1,14 @@
+{
+  "PORT": "3000",
+  "FIREBASE_PROJECT_ID": "prontotv-f3c3b",
+  "FIREBASE_SERVICE_ACCOUNT": "{\"type\":\"service_account\",\"project_id\":\"prontotv-f3c3b\",\"private_key_id\":\"TU_PRIVATE_KEY_ID\",\"private_key\":\"-----BEGIN PRIVATE KEY-----\\nTU_PRIVATE_KEY\\n-----END PRIVATE KEY-----\\n\",\"client_email\":\"firebase-adminsdk-fbsvc@prontotv-f3c3b.iam.gserviceaccount.com\",\"client_id\":\"TU_CLIENT_ID\",\"auth_uri\":\"https://accounts.google.com/o/oauth2/auth\",\"token_uri\":\"https://oauth2.googleapis.com/token\",\"auth_provider_x509_cert_url\":\"https://www.googleapis.com/oauth2/v1/certs\",\"client_x509_cert_url\":\"https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40prontotv-f3c3b.iam.gserviceaccount.com\"}",
+  "B2_ENDPOINT": "https://s3.us-east-005.backblazeb2.com",
+  "B2_KEY_ID": "TU_B2_KEY_ID",
+  "B2_APPLICATION_KEY": "TU_B2_APPLICATION_KEY",
+  "B2_BUCKET_NAME": "mixercur",
+  "USE_BUNNY_CDN": "true",
+  "BUNNY_CDN_URL": "https://prontotv-cdn.b-cdn.net",
+  "DOMAIN": "prontoenvios.click",
+  "ALLOWED_ORIGINS": "https://prontoenvios.click,https://www.prontoenvios.click,http://localhost:3000,http://localhost:5173"
+}
+
