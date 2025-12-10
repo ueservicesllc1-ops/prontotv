@@ -262,10 +262,24 @@ html, body {
     text-align: center;
     padding: 40px;
     display: flex;
+    flex-direction: column;
     justify-content: center;
     align-items: center;
     width: 100%;
     height: 100%;
+    margin: 0;
+    position: relative;
+    left: 0;
+    right: 0;
+}
+
+.pronto-logo-waiting {
+    max-width: 400px !important;
+    width: 400px !important;
+    height: auto !important;
+    margin: 0 auto 40px auto !important;
+    filter: brightness(0) invert(1) !important;
+    display: block !important;
 }
 
 .freedom-labs-text {
@@ -274,15 +288,16 @@ html, body {
     color: #00ff41 !important;
     letter-spacing: 6px;
     text-transform: none;
-    margin: 0;
+    margin: 60px auto 0 auto !important;
     padding: 0;
-    text-align: center;
+    text-align: center !important;
     display: block !important;
     visibility: visible !important;
     opacity: 1 !important;
     font-family: 'Courier New', 'Courier', monospace !important;
     text-shadow: 0 0 10px #00ff41, 0 0 20px #00ff41, 0 0 30px #00ff41;
     animation: pulse 2s ease-in-out infinite;
+    width: auto !important;
 }
 
 @keyframes pulse {
