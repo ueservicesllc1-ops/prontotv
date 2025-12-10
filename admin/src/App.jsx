@@ -7,7 +7,30 @@ import Schedules from './components/Schedules'
 import LiveView from './components/LiveView'
 import { FaEye } from 'react-icons/fa'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
+// Detectar automáticamente la URL del servidor basándose en la URL actual
+function getApiUrl() {
+  // Si hay una variable de entorno configurada, usarla
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL
+  }
+  
+  // Si estamos en localhost, usar localhost:3000
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return 'http://localhost:3000/api'
+  }
+  
+  // Si estamos en producción, usar la misma URL base pero con /api
+  const protocol = window.location.protocol
+  const hostname = window.location.hostname
+  const port = window.location.port ? `:${window.location.port}` : ''
+  return `${protocol}//${hostname}${port}/api`
+}
+
+const API_URL = (function() {
+  const url = getApiUrl()
+  console.log('🌐 Admin - URL del servidor detectada:', url)
+  return url
+})()
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard')

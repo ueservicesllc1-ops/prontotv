@@ -3,9 +3,26 @@
 const urlParams = new URLSearchParams(window.location.search);
 const urlDeviceId = urlParams.get('device_id');
 
+// Detectar automáticamente la URL del servidor basándose en la URL actual
+function getServerUrl() {
+    // Si estamos en localhost, usar localhost:3000
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        return 'http://localhost:3000/api';
+    }
+    // Si estamos en producción, usar la misma URL base pero con /api
+    const protocol = window.location.protocol;
+    const hostname = window.location.hostname;
+    const port = window.location.port ? `:${window.location.port}` : '';
+    return `${protocol}//${hostname}${port}/api`;
+}
+
 const CONFIG = {
-    // URL del servidor API
-    SERVER_URL: 'http://localhost:3000/api',
+    // URL del servidor API (detectada automáticamente)
+    SERVER_URL: (function() {
+        const url = getServerUrl();
+        console.log('🌐 URL del servidor detectada:', url);
+        return url;
+    })(),
     
     // ID único del dispositivo (prioridad: URL > localStorage > generar nuevo)
     DEVICE_ID: urlDeviceId || localStorage.getItem('device_id') || generateDeviceId(),

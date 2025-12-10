@@ -203,20 +203,26 @@ app.post('/api/tvs/register', async (req, res) => {
 
 // Obtener todas las TVs
 app.get('/api/tvs', async (req, res) => {
+  console.log('[GET /api/tvs] Iniciando consulta de TVs...');
+  console.log('[GET /api/tvs] Firebase inicializado:', !!db);
+  
   // Timeout de 3 segundos
   const timeout = setTimeout(() => {
     if (!res.headersSent) {
+      console.warn('[GET /api/tvs] ⚠️ Timeout alcanzado, retornando array vacío');
       res.json([]);
     }
   }, 3000);
 
   try {
+    console.log('[GET /api/tvs] Consultando Firestore...');
     const snapshot = await Promise.race([
       db.collection(COLLECTIONS.TVS)
         .orderBy('created_at', 'desc')
         .get()
         .catch(err => {
-          console.error('Error obteniendo TVs:', err);
+          console.error('[GET /api/tvs] ❌ Error obteniendo TVs:', err);
+          console.error('[GET /api/tvs] Error stack:', err.stack);
           return { docs: [] };
         }),
       new Promise((resolve) => setTimeout(() => resolve({ docs: [] }), 2000))
@@ -224,19 +230,33 @@ app.get('/api/tvs', async (req, res) => {
     
     clearTimeout(timeout);
     
-    const tvs = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-      created_at: toDate(doc.data().created_at)?.toISOString(),
-      last_seen: toDate(doc.data().last_seen)?.toISOString()
-    }));
+    console.log(`[GET /api/tvs] ✅ TVs encontradas: ${snapshot.docs.length}`);
+    
+    const tvs = snapshot.docs.map(doc => {
+      const data = doc.data();
+      // Calcular status basado en last_seen
+      const lastSeen = toDate(data.last_seen);
+      const now = new Date();
+      const minutesSinceLastSeen = lastSeen ? (now - lastSeen) / (1000 * 60) : Infinity;
+      const status = minutesSinceLastSeen < 2 ? 'online' : 'offline';
+      
+      return {
+        id: doc.id,
+        ...data,
+        status,
+        created_at: toDate(data.created_at)?.toISOString(),
+        last_seen: toDate(data.last_seen)?.toISOString()
+      };
+    });
     
     if (!res.headersSent) {
+      console.log(`[GET /api/tvs] 📤 Enviando ${tvs.length} TVs al cliente`);
       res.json(tvs);
     }
   } catch (error) {
     clearTimeout(timeout);
-    console.error('Error fetching TVs:', error);
+    console.error('[GET /api/tvs] ❌ Error en catch:', error);
+    console.error('[GET /api/tvs] Error stack:', error.stack);
     if (!res.headersSent) {
       res.json([]);
     }
@@ -1238,11 +1258,15 @@ io.on('connection', (socket) => {
   });
 });
 
-http.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
+http.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📱 Admin panel: http://localhost:${PORT}`);
   console.log(`📺 Cliente TV: http://localhost:${PORT}/client`);
   console.log(`🔌 API: http://localhost:${PORT}/api`);
   console.log(`🔌 WebSocket: ws://localhost:${PORT}`);
   console.log(`🔥 Using Firebase Firestore`);
+  console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🌐 Allowed Origins: ${process.env.ALLOWED_ORIGINS || 'default'}`);
+  console.log(`🔑 Firebase Service Account: ${process.env.FIREBASE_SERVICE_ACCOUNT ? '✅ Configurado' : '❌ No configurado'}`);
+  console.log(`📁 Firebase DB: ${db ? '✅ Inicializado' : '❌ No inicializado'}`);
 });
