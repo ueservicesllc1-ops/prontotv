@@ -8,7 +8,8 @@
   background: #F58342 !important;
   background-color: #F58342 !important;
   color: white !important;
-  padding: 20px 0;
+  padding: 30px 0;
+  min-height: 80px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
 
@@ -16,6 +17,11 @@
   max-width: 1400px;
   margin: 0 auto;
   padding: 0 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 20px;
 }
 
 .app-header h1 {
@@ -49,6 +55,28 @@
 .nav-tabs button.active {
   background: white;
   color: #F58342;
+}
+
+.live-view-btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: 2px solid white;
+  color: white;
+  padding: 10px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.live-view-btn:hover {
+  background: white;
+  color: #F58342;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .app-main {

@@ -26,16 +26,18 @@ html, body {
 
 /* Estado de conexión */
 .status {
-    position: absolute;
-    top: 10px;
-    right: 10px;
+    position: fixed !important;
+    top: 10px !important;
+    right: 10px !important;
     padding: 8px 16px;
     border-radius: 20px;
     font-size: 12px;
     font-weight: 600;
-    z-index: 1000;
+    z-index: 100000 !important;
     backdrop-filter: blur(10px);
     background: rgba(0, 0, 0, 0.6);
+    display: block !important;
+    visibility: visible !important;
 }
 
 .status.online {
@@ -239,25 +241,59 @@ html, body {
 
 /* Pantalla de espera */
 .waiting-screen {
-    width: 100%;
-    height: 100%;
-    display: flex;
+    width: 100vw !important;
+    height: 100vh !important;
+    display: flex !important;
     justify-content: center;
     align-items: center;
-    background: #F58342; /* Color naranja */
+    background: #000000 !important; /* Fondo negro */
     flex-direction: column;
-    position: absolute;
-    top: 0;
-    left: 0;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    z-index: 99999 !important;
 }
 
 .waiting-screen.hidden {
-    display: none;
+    display: none !important;
 }
 
 .waiting-content {
     text-align: center;
     padding: 40px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+}
+
+.freedom-labs-text {
+    font-size: 48px !important;
+    font-weight: 300;
+    color: #00ff41 !important;
+    letter-spacing: 6px;
+    text-transform: none;
+    margin: 0;
+    padding: 0;
+    text-align: center;
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    font-family: 'Courier New', 'Courier', monospace !important;
+    text-shadow: 0 0 10px #00ff41, 0 0 20px #00ff41, 0 0 30px #00ff41;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+        text-shadow: 0 0 10px #00ff41, 0 0 20px #00ff41, 0 0 30px #00ff41;
+    }
+    50% {
+        opacity: 0.7;
+        text-shadow: 0 0 5px #00ff41, 0 0 10px #00ff41, 0 0 15px #00ff41;
+    }
 }
 
 .spinner {

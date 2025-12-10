@@ -9,13 +9,25 @@ const { db, COLLECTIONS, toDate, toTimestamp } = require('./firebase');
 const { uploadFile, deleteFile, listFiles, getPublicUrl, convertToBunnyCDN } = require('./b2');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
 
 // Middleware
 // Configurar CORS con dominios permitidos
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
   ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
   : ['http://localhost:3000', 'http://localhost:5173'];
+
+const http = require('http').createServer(app);
+const { Server } = require('socket.io');
+const PORT = process.env.PORT || 3000;
+
+// Configurar Socket.io con CORS
+const io = new Server(http, {
+  cors: {
+    origin: allowedOrigins.includes('*') ? '*' : allowedOrigins,
+    methods: ['GET', 'POST'],
+    credentials: true
+  }
+});
 
 app.use(cors({
   origin: function (origin, callback) {
@@ -231,15 +243,16 @@ app.get('/api/tvs', async (req, res) => {
   }
 });
 
-// Actualizar nombre de TV (debe ir antes de GET /api/tvs/:id para evitar conflictos)
+// Actualizar TV (nombre o aspect_ratio)
 app.patch('/api/tvs/:id', async (req, res) => {
   try {
-    const { name } = req.body;
+    const { name, aspect_ratio } = req.body;
     
-    if (!name || name.trim() === '') {
-      return res.status(400).json({ error: 'Name is required' });
+    // Validar que al menos un campo se esté actualizando
+    if (name === undefined && aspect_ratio === undefined) {
+      return res.status(400).json({ error: 'At least one field (name or aspect_ratio) must be provided' });
     }
-
+    
     const docRef = db.collection(COLLECTIONS.TVS).doc(req.params.id);
     const doc = await docRef.get();
     
@@ -247,10 +260,29 @@ app.patch('/api/tvs/:id', async (req, res) => {
       return res.status(404).json({ error: 'TV not found' });
     }
 
-    await docRef.update({
-      name: name.trim(),
+    const updateData = {
       updated_at: toTimestamp(new Date())
-    });
+    };
+
+    // Solo validar name si se está actualizando
+    if (name !== undefined) {
+      if (!name || name.trim() === '') {
+        return res.status(400).json({ error: 'Name cannot be empty' });
+      }
+      updateData.name = name.trim();
+    }
+
+    // Validar aspect_ratio si se está actualizando
+    if (aspect_ratio !== undefined) {
+      if (aspect_ratio !== '16:9' && aspect_ratio !== '9:16') {
+        console.log(`[PATCH /api/tvs/:id] ❌ aspect_ratio inválido: ${aspect_ratio}`);
+        return res.status(400).json({ error: 'aspect_ratio must be "16:9" or "9:16"' });
+      }
+      console.log(`[PATCH /api/tvs/:id] ✅ Actualizando aspect_ratio a: ${aspect_ratio}`);
+      updateData.aspect_ratio = aspect_ratio;
+    }
+
+    await docRef.update(updateData);
 
     const updatedDoc = await docRef.get();
     const data = updatedDoc.data();
@@ -362,6 +394,46 @@ app.post('/api/videos', async (req, res) => {
   }
 });
 
+// Actualizar video (PATCH)
+app.patch('/api/videos/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+    
+    console.log(`[PATCH /api/videos/:id] Actualizando video ${id} con datos:`, updateData);
+    
+    const docRef = db.collection(COLLECTIONS.VIDEOS).doc(id);
+    const doc = await docRef.get();
+    
+    if (!doc.exists) {
+      console.log(`[PATCH /api/videos/:id] ❌ Video ${id} no encontrado en Firestore`);
+      return res.status(404).json({ error: 'Video not found' });
+    }
+    
+    // Preparar datos de actualización
+    const dataToUpdate = {};
+    if (updateData.duration !== undefined) {
+      dataToUpdate.duration = updateData.duration;
+    }
+    if (updateData.name !== undefined) {
+      dataToUpdate.name = updateData.name;
+    }
+    if (updateData.url !== undefined) {
+      dataToUpdate.url = updateData.url;
+    }
+    
+    dataToUpdate.updated_at = toTimestamp(new Date());
+    
+    await docRef.update(dataToUpdate);
+    
+    const updatedDoc = await docRef.get();
+    res.json({ id: updatedDoc.id, ...updatedDoc.data() });
+  } catch (error) {
+    console.error('Error updating video:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Obtener todos los videos
 app.get('/api/videos', async (req, res) => {
   try {
@@ -397,6 +469,7 @@ app.get('/api/videos', async (req, res) => {
         bunnyUrl: bunnyUrl, // URL de Bunny CDN explícita
         b2Url: b2Url, // URL original de B2
         originalUrl: videoData.originalUrl || videoData.url, // URL original para referencia
+        duration: videoData.duration || null, // Asegurar que duration esté presente (puede ser 0, null o undefined)
         created_at: toDate(videoData.created_at)?.toISOString()
       };
     });
@@ -832,7 +905,8 @@ app.get('/api/client/playback/:device_id', async (req, res) => {
         let content = {
           url: videoUrl,
           name: videoData.name,
-          type: contentType
+          type: contentType,
+          loop: activeSchedule.is_loop === 1 // Incluir loop para videos individuales también
         };
 
         // Si es imagen, agregar duración si existe
@@ -1072,10 +1146,103 @@ app.get('*', (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+// Almacenar estado de reproducción de cada TV
+const tvPlaybackState = new Map(); // device_id -> { currentTime, videoUrl, videoName, duration, isPlaying, etc. }
+
+// Configurar Socket.io
+io.on('connection', (socket) => {
+  console.log('🔌 Cliente conectado:', socket.id);
+
+  // Cuando un TV se conecta y envía su device_id
+  socket.on('tv-register', (data) => {
+    const { device_id } = data;
+    if (device_id) {
+      socket.device_id = device_id;
+      socket.join(`tv-${device_id}`);
+      console.log(`📺 TV registrado vía WebSocket: ${device_id}`);
+      
+      // Enviar estado actual si existe
+      if (tvPlaybackState.has(device_id)) {
+        socket.emit('playback-state', tvPlaybackState.get(device_id));
+      }
+    }
+  });
+
+  // Cuando un TV actualiza su estado de reproducción
+  socket.on('playback-update', (data) => {
+    const { device_id, currentTime, videoUrl, videoName, duration, isPlaying, videoIndex, totalVideos, sequenceLoop } = data;
+    
+    if (device_id) {
+      const state = {
+        device_id,
+        currentTime: currentTime || 0,
+        videoUrl,
+        videoName,
+        duration: duration || 0,
+        isPlaying: isPlaying || false,
+        videoIndex: videoIndex || 0,
+        totalVideos: totalVideos || 1,
+        sequenceLoop: sequenceLoop || false,
+        timestamp: Date.now()
+      };
+      
+      // Guardar estado
+      tvPlaybackState.set(device_id, state);
+      
+      // Broadcast a todos los admins conectados
+      io.to('admins').emit('tv-playback-update', state);
+      
+      console.log(`📊 Estado actualizado para TV ${device_id}:`, {
+        video: videoName,
+        time: `${Math.floor(currentTime)}s / ${Math.floor(duration)}s`,
+        playing: isPlaying
+      });
+    }
+  });
+
+  // Cuando un admin se conecta
+  socket.on('admin-connect', () => {
+    socket.join('admins');
+    console.log('👤 Admin conectado:', socket.id);
+    
+    // Enviar todos los estados actuales guardados
+    const allStates = Array.from(tvPlaybackState.entries()).map(([device_id, state]) => ({
+      device_id,
+      ...state
+    }));
+    socket.emit('all-playback-states', allStates);
+    
+    // Solicitar estado actual a todos los TVs conectados
+    io.emit('request-playback-state');
+  });
+
+  // Cuando un admin solicita el estado de todos los TVs
+  socket.on('request-all-playback-states', () => {
+    if (socket.rooms.has('admins')) {
+      // Enviar estados guardados
+      const allStates = Array.from(tvPlaybackState.entries()).map(([device_id, state]) => ({
+        device_id,
+        ...state
+      }));
+      socket.emit('all-playback-states', allStates);
+      
+      // Solicitar estado actual a todos los TVs
+      io.emit('request-playback-state');
+    }
+  });
+
+  // Cuando un TV se desconecta
+  socket.on('disconnect', () => {
+    console.log('🔌 Cliente desconectado:', socket.id);
+    // No eliminamos el estado, puede reconectarse
+  });
+});
+
+http.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
   console.log(`📱 Admin panel: http://localhost:${PORT}`);
   console.log(`📺 Cliente TV: http://localhost:${PORT}/client`);
   console.log(`🔌 API: http://localhost:${PORT}/api`);
+  console.log(`🔌 WebSocket: ws://localhost:${PORT}`);
   console.log(`🔥 Using Firebase Firestore`);
 });

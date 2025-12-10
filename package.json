@@ -13,21 +13,26 @@
     "start": "cd server && node index.js",
     "postinstall": "cd admin && npm install"
   },
-  "keywords": ["digital-signage", "android", "tv", "video"],
+  "keywords": [
+    "digital-signage",
+    "android",
+    "tv",
+    "video"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "express": "^4.18.2",
-    "cors": "^2.8.5",
-    "firebase-admin": "^12.0.0",
-    "body-parser": "^1.20.2",
-    "dotenv": "^16.3.1",
     "aws-sdk": "^2.1500.0",
-    "multer": "^1.4.5-lts.1"
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "firebase-admin": "^12.0.0",
+    "multer": "^1.4.5-lts.1",
+    "socket.io": "^4.8.1"
   },
   "devDependencies": {
-    "nodemon": "^3.0.1",
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "nodemon": "^3.0.1"
   }
 }
-

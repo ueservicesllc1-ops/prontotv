@@ -449,15 +449,38 @@ function Schedules({ apiUrl }) {
                   <td>{group.tv_name || `TV-${group.tv_id}`}</td>
                   <td>
                     {group.type === 'sequence' ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <FaVideo style={{ color: '#F58342' }} />
-                        <span>
-                          {group.video_count} video{group.video_count !== 1 ? 's' : ''} 
-                          {group.is_loop === 1 && <span style={{ color: '#F58342', marginLeft: '5px' }}>(Loop)</span>}
-                        </span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <FaVideo style={{ color: '#F58342' }} />
+                          <span>
+                            {group.video_count} video{group.video_count !== 1 ? 's' : ''} 
+                            {group.is_loop === 1 && <span style={{ color: '#F58342', marginLeft: '5px' }}>(Loop)</span>}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#666', marginLeft: '24px' }}>
+                          {(() => {
+                            const totalDuration = group.schedules.reduce((sum, s) => {
+                              const video = videos.find(v => v.id === s.video_id)
+                              return sum + (video?.duration || 0)
+                            }, 0)
+                            return totalDuration > 0 
+                              ? `Duración total: ${Math.floor(totalDuration / 60)}:${String(totalDuration % 60).padStart(2, '0')}`
+                              : 'Duración no disponible'
+                          })()}
+                        </div>
                       </div>
                     ) : (
-                      <span>{group.video_name}</span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <span>{group.video_name}</span>
+                        {(() => {
+                          const video = videos.find(v => v.id === group.video_id)
+                          return video?.duration ? (
+                            <div style={{ fontSize: '11px', color: '#666' }}>
+                              Duración: {Math.floor(video.duration / 60)}:${String(video.duration % 60).padStart(2, '0')}
+                            </div>
+                          ) : null
+                        })()}
+                      </div>
                     )}
                   </td>
                   <td>{group.start_time}</td>
@@ -558,11 +581,26 @@ function Schedules({ apiUrl }) {
                     <strong>Videos seleccionados ({selectedVideos.length}):</strong>
                     <ul style={{ marginTop: '8px', marginLeft: '20px' }}>
                       {selectedVideos.map((video, index) => (
-                        <li key={video.id}>
+                        <li key={video.id} style={{ marginBottom: '4px' }}>
                           {index + 1}. {video.name}
+                          {video.duration && (
+                            <span style={{ fontSize: '12px', color: '#666', marginLeft: '8px' }}>
+                              ({Math.floor(video.duration / 60)}:${String(video.duration % 60).padStart(2, '0')})
+                            </span>
+                          )}
                         </li>
                       ))}
                     </ul>
+                    {selectedVideos.length > 1 && (
+                      <div style={{ marginTop: '8px', fontSize: '12px', color: '#666' }}>
+                        Duración total: {(() => {
+                          const total = selectedVideos.reduce((sum, v) => sum + (v.duration || 0), 0)
+                          return total > 0 
+                            ? `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
+                            : 'No disponible'
+                        })()}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -708,11 +746,15 @@ function Schedules({ apiUrl }) {
                           {index + 1}
                         </span>
                         <strong>{schedule.video_name || video?.name || 'Video'}</strong>
+                        {video?.duration && (
+                          <span style={{ fontSize: '12px', color: '#666', marginLeft: '8px' }}>
+                            ({Math.floor(video.duration / 60)}:${String(video.duration % 60).padStart(2, '0')})
+                          </span>
+                        )}
                       </div>
-                      {video?.duration && (
-                        <div style={{ fontSize: '12px', color: '#666', marginLeft: '32px' }}>
-                          <FaClock style={{ marginRight: '4px' }} />
-                          {Math.floor(video.duration / 60)}:{(video.duration % 60).toString().padStart(2, '0')}
+                      {!video?.duration && (
+                        <div style={{ fontSize: '11px', color: '#999', marginLeft: '32px', fontStyle: 'italic' }}>
+                          Duración no disponible
                         </div>
                       )}
                     </div>
@@ -808,11 +850,26 @@ function Schedules({ apiUrl }) {
                     <strong>Videos seleccionados ({selectedVideos.length}):</strong>
                     <ul style={{ marginTop: '8px', marginLeft: '20px' }}>
                       {selectedVideos.map((video, index) => (
-                        <li key={video.id}>
+                        <li key={video.id} style={{ marginBottom: '4px' }}>
                           {index + 1}. {video.name}
+                          {video.duration && (
+                            <span style={{ fontSize: '12px', color: '#666', marginLeft: '8px' }}>
+                              ({Math.floor(video.duration / 60)}:${String(video.duration % 60).padStart(2, '0')})
+                            </span>
+                          )}
                         </li>
                       ))}
                     </ul>
+                    {selectedVideos.length > 1 && (
+                      <div style={{ marginTop: '8px', fontSize: '12px', color: '#666' }}>
+                        Duración total: {(() => {
+                          const total = selectedVideos.reduce((sum, v) => sum + (v.duration || 0), 0)
+                          return total > 0 
+                            ? `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
+                            : 'No disponible'
+                        })()}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

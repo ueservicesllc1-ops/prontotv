@@ -188,8 +188,8 @@ function TVs({ apiUrl }) {
       const daysToSchedule = scheduleData.days.length > 0 ? scheduleData.days : [null]
       let createdCount = 0
 
-      // Si hay múltiples videos y loop está activado, crear secuencia con loop
-      if (selectedVideos.length > 1 && scheduleData.loop) {
+      // Si loop está activado (con uno o más videos), crear programación con loop
+      if (scheduleData.loop) {
         // Crear programación con lista de videos para loop continuo
         // Todos los videos se reproducen en secuencia y luego vuelven al inicio
         for (const day of daysToSchedule) {
@@ -279,7 +279,8 @@ function TVs({ apiUrl }) {
                 start_time: scheduleData.start_time,
                 end_time: endTime || null,
                 day_of_week: day,
-                is_active: scheduleData.is_active ? 1 : 0
+                is_active: scheduleData.is_active ? 1 : 0,
+                is_loop: scheduleData.loop ? 1 : 0 // Incluir is_loop para videos individuales también
               })
               createdCount++
             }
@@ -929,7 +930,6 @@ function TVs({ apiUrl }) {
                     checked={scheduleData.loop}
                     onChange={(e) => setScheduleData({...scheduleData, loop: e.target.checked})}
                     style={{ marginRight: '10px', width: '18px', height: '18px', cursor: 'pointer' }}
-                    disabled={selectedVideos.length <= 1}
                   />
                     <div>
                     <strong style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -937,8 +937,10 @@ function TVs({ apiUrl }) {
                       Loop
                     </strong>
                     <div style={{ fontSize: '12px', color: '#666', marginTop: '2px' }}>
-                      {selectedVideos.length <= 1 
-                        ? 'Selecciona múltiples videos para activar' 
+                      {selectedVideos.length === 0
+                        ? 'Selecciona al menos un video para activar'
+                        : selectedVideos.length === 1
+                        ? 'El video se reproducirá en loop continuo'
                         : 'Los videos se reproducirán en secuencia y luego volverán al inicio (loop continuo)'}
                     </div>
                   </div>
