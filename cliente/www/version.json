@@ -1,7 +1,7 @@
 {
     "version": "1.0.0",
-    "buildNumber": 10,
-    "buildDate": "2025-12-19T13:40:00-05:00",
+    "buildNumber": 11,
+    "buildDate": "2025-12-19T13:50:00-05:00",
     "downloadUrl": "https://drive.google.com/uc?export=download&id=1-joJv2LvPmZ97ltgRIxPGd7bXFYRNPMN",
-    "releaseNotes": "v1.0.0 - Build 10\n• Versión visible en pantalla (TV)"
+    "releaseNotes": "v1.0.0 - Build 11\n• Tiempo de sincronización reducido a 10s\n• URL de producción fija"
 }

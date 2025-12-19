@@ -7,10 +7,14 @@ const urlDeviceId = urlParams.get('device_id');
 function getServerUrl() {
     // Si estamos en APK/Capacitor (file:// o capacitor://), usar URL de producción
     if (window.location.protocol === 'file:' || window.location.protocol === 'capacitor:' || window.location.protocol === 'https:') {
-        // IMPORTANTE: Cambia esta URL por la URL de tu servidor en producción
-        // Por ejemplo: 'https://tu-servidor.railway.app/api'
+        // PRUEBA: Usando servidor local en la red
+        // Asegúrate de que el TV esté en la misma red WiFi que tu PC
+        // const productionUrl = 'http://192.168.1.173:3000/api';
+
+        // Para producción, usa Railway:
         const productionUrl = 'https://prontotv-production.up.railway.app/api';
-        console.log('📱 Modo APK/Producción detectado, usando:', productionUrl);
+
+        console.log('📱 Modo APK detectado, usando:', productionUrl);
         return productionUrl;
     }
 
@@ -38,7 +42,7 @@ const CONFIG = {
     DEVICE_ID: urlDeviceId || localStorage.getItem('device_id') || generateDeviceId(),
 
     // Intervalo de sincronización con el servidor (en milisegundos)
-    SYNC_INTERVAL: 60000, // 60 segundos (aumentado para reducir peticiones innecesarias)
+    SYNC_INTERVAL: 10000, // 10 segundos (reducido para mayor velocidad)
 
     // Intervalo de verificación de conexión (en milisegundos)
     CONNECTION_CHECK_INTERVAL: 5000, // 5 segundos
