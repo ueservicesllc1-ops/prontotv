@@ -112,6 +112,12 @@ function initWebSocket() {
                 startSync();
             }, 5000);
         });
+
+        // Escuchar actualización de contenido (Push)
+        AppState.socket.on('content-update', () => {
+            console.log('⚡ Actualización de contenido recibida (Push)');
+            fetchPlayback();
+        });
     } catch (error) {
         console.error('❌ Error inicializando WebSocket:', error);
     }

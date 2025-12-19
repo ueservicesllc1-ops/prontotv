@@ -22,6 +22,8 @@ const PORT = process.env.PORT || 3000;
 
 // Configurar Socket.io con CORS
 const io = new Server(http, {
+  pingTimeout: 5000, // Detectar desconexión en 5s
+  pingInterval: 2000, // Enviar ping cada 2s
   cors: {
     origin: (origin, callback) => {
       // Permitir requests sin origin, capacitor, file, localhost (Android TV)
@@ -1140,6 +1142,10 @@ app.post('/api/client/play/:device_id', async (req, res) => {
 
     const newScheduleRef = await db.collection(COLLECTIONS.SCHEDULES).add(scheduleData);
     console.log(`[Play Now] Programación inmediata creada: ${newScheduleRef.id} para video ${video_id}`);
+
+    // Notificar al TV inmediatamente para que actualice su contenido
+    io.to(`tv-${device_id}`).emit('content-update');
+    console.log(`[Play Now] Señal enviada a TV: ${device_id}`);
 
     res.json({ success: true, video: { id: videoDoc.id, ...videoData }, schedule_id: newScheduleRef.id });
   } catch (error) {
