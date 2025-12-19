@@ -38,7 +38,7 @@ app.use(cors({
     }
 
     // Permitir capacitor:// y file:// origins
-    if (origin.startsWith('capacitor://') || origin.startsWith('file://')) {
+    if (origin.startsWith('capacitor://') || origin.startsWith('file://') || origin === 'https://localhost') {
       console.log('✅ CORS: Permitiendo origin de Capacitor:', origin);
       return callback(null, true);
     }
