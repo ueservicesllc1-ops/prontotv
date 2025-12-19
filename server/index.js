@@ -1148,6 +1148,56 @@ app.post('/api/client/play/:device_id', async (req, res) => {
   }
 });
 
+// Detener reproducción en un TV
+app.post('/api/client/stop/:device_id', async (req, res) => {
+  try {
+    const { device_id } = req.params;
+
+    // Buscar TV
+    const tvSnapshot = await db.collection(COLLECTIONS.TVS)
+      .where('device_id', '==', device_id)
+      .limit(1)
+      .get();
+
+    if (tvSnapshot.empty) {
+      return res.status(404).json({ error: 'TV not found' });
+    }
+
+    const tvDoc = tvSnapshot.docs[0];
+    const tvId = tvDoc.id;
+
+    // Desactivar programaciones activas e INMEDIATAS
+    const batch = db.batch();
+
+    // Obtener todas las programaciones activas (incluyendo inmediatas)
+    const activeSchedulesSnapshot = await db.collection(COLLECTIONS.SCHEDULES)
+      .where('tv_id', '==', tvId)
+      .where('is_active', '==', 1)
+      .get();
+
+    activeSchedulesSnapshot.docs.forEach(doc => {
+      batch.update(doc.ref, {
+        is_active: 0,
+        stopped_at: toTimestamp(new Date())
+      });
+    });
+
+    await batch.commit();
+
+    // Enviar señal WebSocket para detener reproducción inmediatamente
+    io.to(`tv-${device_id}`).emit('stop-playback', {
+      timestamp: Date.now()
+    });
+
+    console.log(`[Stop] Enviando señal de stop a TV: ${device_id}`);
+
+    res.json({ success: true, message: 'Reproducción detenida' });
+  } catch (error) {
+    console.error('Error stopping playback:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ========== B2 UPLOAD ENDPOINTS ==========
 
 // Subir video a B2

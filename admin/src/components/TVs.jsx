@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import axios from 'axios'
-import { FaCalendar, FaClock, FaVideo, FaCheck, FaPlay, FaImage, FaSun, FaBriefcase, FaClipboardList, FaBullseye, FaStar, FaUmbrellaBeach, FaTimes, FaEdit, FaPlayCircle, FaMapMarkerAlt } from 'react-icons/fa'
+import { FaCalendar, FaClock, FaVideo, FaCheck, FaPlay, FaImage, FaSun, FaBriefcase, FaClipboardList, FaBullseye, FaStar, FaUmbrellaBeach, FaTimes, FaEdit, FaPlayCircle, FaMapMarkerAlt, FaStop } from 'react-icons/fa'
 
 function TVs({ apiUrl }) {
   const [tvs, setTVs] = useState([])
@@ -312,6 +312,18 @@ function TVs({ apiUrl }) {
     }
   }
 
+  const handleStopPlayback = async (tv) => {
+    if (!confirm(`¿Detener la reproducción en ${tv.name}? El TV volverá a la pantalla de espera.`)) return
+
+    try {
+      await axios.post(`${apiUrl}/client/stop/${tv.device_id}`)
+      alert('✅ Reproducción detenida correctamente')
+    } catch (error) {
+      console.error('Error stopping playback:', error)
+      alert('❌ Error al detener: ' + (error.response?.data?.error || error.message))
+    }
+  }
+
   const handlePlayVideo = async (tv) => {
     setSelectedVideo(tv)
     setShowModal(true)
@@ -464,6 +476,19 @@ function TVs({ apiUrl }) {
                     >
                       <FaPlayCircle style={{ marginRight: '6px' }} />
                       Reproducir Ahora
+                    </button>
+                    <button
+                      className="btn"
+                      onClick={() => handleStopPlayback(tv)}
+                      style={{
+                        marginRight: '10px',
+                        marginBottom: '5px',
+                        background: '#ef4444',
+                        color: 'white'
+                      }}
+                      title="Detener reproducción y volver a espera"
+                    >
+                      <FaStop style={{ marginRight: '6px' }} /> Detener
                     </button>
                     <button
                       className="btn"

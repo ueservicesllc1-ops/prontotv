@@ -93,6 +93,25 @@ function initWebSocket() {
         AppState.socket.on('connect_error', (error) => {
             console.error('❌ Error de conexión WebSocket:', error);
         });
+
+        // Escuchar solicitud de detención
+        AppState.socket.on('stop-playback', () => {
+            console.log('🛑 Solicitud de detención recibida desde admin');
+            stopContent();
+            updateConnectionStatus(true);
+            showWaiting('Reproducción detenida por el administrador');
+
+            // Limpiar video forzado localmente si existe
+            if (AppState.syncInterval) {
+                clearInterval(AppState.syncInterval);
+                AppState.syncInterval = null;
+            }
+
+            // Volver a sincronizar después de un momento
+            setTimeout(() => {
+                startSync();
+            }, 5000);
+        });
     } catch (error) {
         console.error('❌ Error inicializando WebSocket:', error);
     }
