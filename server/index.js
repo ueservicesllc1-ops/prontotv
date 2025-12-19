@@ -31,12 +31,23 @@ const io = new Server(http, {
 
 app.use(cors({
   origin: function (origin, callback) {
-    // Permitir requests sin origin (mobile apps, Postman, etc.)
-    if (!origin) return callback(null, true);
+    // Permitir requests sin origin (mobile apps, Capacitor, Postman, etc.)
+    if (!origin) {
+      console.log('✅ CORS: Permitiendo request sin origin (mobile app/Capacitor)');
+      return callback(null, true);
+    }
+
+    // Permitir capacitor:// y file:// origins
+    if (origin.startsWith('capacitor://') || origin.startsWith('file://')) {
+      console.log('✅ CORS: Permitiendo origin de Capacitor:', origin);
+      return callback(null, true);
+    }
 
     if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes('*')) {
+      console.log('✅ CORS: Permitiendo origin:', origin);
       callback(null, true);
     } else {
+      console.warn('❌ CORS: Bloqueando origin:', origin);
       callback(new Error('Not allowed by CORS'));
     }
   },
