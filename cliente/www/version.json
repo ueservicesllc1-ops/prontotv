@@ -1,7 +1,7 @@
 {
     "version": "1.0.0",
-    "buildNumber": 7,
-    "buildDate": "2025-12-19T13:00:00-05:00",
+    "buildNumber": 8,
+    "buildDate": "2025-12-19T13:40:00-05:00",
     "downloadUrl": "https://drive.google.com/uc?export=download&id=1-joJv2LvPmZ97ltgRIxPGd7bXFYRNPMN",
-    "releaseNotes": "v1.0.0 - Build 7\n• Detección Inmediata de desconexión\n• Reproducción instantánea (Push)\n• Mayor estabilidad de conexión"
+    "releaseNotes": "v1.0.0 - Build 8\n• Visualización de versión en Admin\n• Mejoras en registro de dispositivo"
 }

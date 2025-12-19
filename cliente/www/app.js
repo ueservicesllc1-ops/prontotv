@@ -82,7 +82,8 @@ function initWebSocket() {
 
             // Registrar este TV
             AppState.socket.emit('tv-register', {
-                device_id: CONFIG.DEVICE_ID
+                device_id: CONFIG.DEVICE_ID,
+                version: AppState.versionInfo ? `Build ${AppState.versionInfo.buildNumber}` : 'Unknown'
             });
         });
 
@@ -174,6 +175,15 @@ function init() {
     console.log('🚀 Iniciando ProntoTV Cliente');
     console.log('📱 Device ID:', CONFIG.DEVICE_ID);
     console.log('📦 Modo APK:', AppState.isAPKMode);
+
+    // Cargar información de versión
+    fetch('version.json')
+        .then(res => res.json())
+        .then(info => {
+            AppState.versionInfo = info;
+            console.log('📦 Versión actual:', info);
+        })
+        .catch(e => console.warn('No se pudo cargar versión', e));
 
     // Inicializar WebSocket (solo si no es modo preview)
     if (!AppState.isPreviewMode) {
@@ -474,7 +484,8 @@ async function registerDevice() {
             },
             body: JSON.stringify({
                 device_id: CONFIG.DEVICE_ID,
-                name: `TV-${CONFIG.DEVICE_ID.slice(-6)}`
+                name: localStorage.getItem('tv_name') || `TV-${CONFIG.DEVICE_ID.slice(-6)}`,
+                version: AppState.versionInfo ? `Build ${AppState.versionInfo.buildNumber}` : 'Unknown'
             })
         });
 

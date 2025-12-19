@@ -132,7 +132,7 @@ app.post('/api/tvs/register', async (req, res) => {
   }, 3000);
 
   try {
-    const { device_id, name } = req.body;
+    const { device_id, name, version } = req.body;
 
     if (!device_id) {
       clearTimeout(timeout);
@@ -183,6 +183,7 @@ app.post('/api/tvs/register', async (req, res) => {
     let tvData = {
       device_id,
       name: name || `TV-${device_id.slice(-6)}`,
+      version: version || 'Unknown',
       status: 'online',
       ip: ip || null,
       location: location || null,
@@ -213,6 +214,7 @@ app.post('/api/tvs/register', async (req, res) => {
       // Actualizar solo los campos necesarios, preservando el nombre personalizado
       const updateData = {
         status: 'online',
+        version: version || 'Unknown',
         ip: ip || null,
         location: location || null,
         last_seen: toTimestamp(new Date()),

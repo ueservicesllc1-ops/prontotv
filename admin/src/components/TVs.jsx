@@ -488,6 +488,11 @@ function TVs({ apiUrl }) {
                     <span className={`badge ${tv.status === 'online' ? 'badge-success' : 'badge-danger'}`}>
                       {tv.status === 'online' ? 'En línea' : 'Desconectado'}
                     </span>
+                    {tv.version && tv.version !== 'Unknown' && (
+                      <div style={{ fontSize: '11px', color: '#666', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}>
+                        📱 {tv.version}
+                      </div>
+                    )}
                   </td>
                   <td>
                     {tv.location ? (
