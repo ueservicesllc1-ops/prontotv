@@ -1385,9 +1385,43 @@ io.on('connection', (socket) => {
   });
 
   // Cuando un TV se desconecta
-  socket.on('disconnect', () => {
+  socket.on('disconnect', async () => {
     console.log('🔌 Cliente desconectado:', socket.id);
-    // No eliminamos el estado, puede reconectarse
+    if (socket.device_id) {
+      console.log(`❌ TV desconectado: ${socket.device_id}`);
+
+      // Actualizar Firestore inmediatamente
+      try {
+        const snapshot = await db.collection(COLLECTIONS.TVS)
+          .where('device_id', '==', socket.device_id)
+          .limit(1)
+          .get();
+
+        if (!snapshot.empty) {
+          await snapshot.docs[0].ref.update({
+            status: 'offline',
+            last_seen: toTimestamp(new Date())
+          });
+          console.log(`[Status] TV ${socket.device_id} marcado como offline`);
+        }
+      } catch (e) {
+        console.error('Error updating offline status:', e);
+      }
+
+      // Notificar al admin vía WebSocket
+      // Enviamos un evento especial o actualizamos el playState
+      io.to('admins').emit('tv-status-change', {
+        device_id: socket.device_id,
+        status: 'offline'
+      });
+
+      if (tvPlaybackState.has(socket.device_id)) {
+        const state = tvPlaybackState.get(socket.device_id);
+        state.isPlaying = false;
+        state.isOffline = true;
+        io.to('admins').emit('tv-playback-update', state);
+      }
+    }
   });
 });
 

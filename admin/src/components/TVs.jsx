@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import axios from 'axios'
 import { FaCalendar, FaClock, FaVideo, FaCheck, FaPlay, FaImage, FaSun, FaBriefcase, FaClipboardList, FaBullseye, FaStar, FaUmbrellaBeach, FaTimes, FaEdit, FaPlayCircle, FaMapMarkerAlt, FaStop } from 'react-icons/fa'
+import io from 'socket.io-client'
 
 function TVs({ apiUrl }) {
   const [tvs, setTVs] = useState([])
@@ -23,6 +24,49 @@ function TVs({ apiUrl }) {
   const [selectedVideos, setSelectedVideos] = useState([])
   const [totalDuration, setTotalDuration] = useState(0)
   const [previewVideo, setPreviewVideo] = useState(null)
+
+  /* Socket.io Effect */
+  useEffect(() => {
+    try {
+      // Configurar Socket.io URL base
+      // Si apiUrl es http://localhost:3000/api -> ws://localhost:3000
+      let socketUrl = apiUrl
+      if (socketUrl.endsWith('/api')) {
+        socketUrl = socketUrl.substring(0, socketUrl.length - 4)
+      }
+
+      console.log('🔌 Conectando admin a WebSocket:', socketUrl)
+
+      const socket = io(socketUrl, {
+        transports: ['websocket', 'polling'],
+        reconnection: true
+      })
+
+      socket.on('connect', () => {
+        console.log('✅ Admin conectado a WebSocket')
+        socket.emit('admin-connect')
+      })
+
+      socket.on('tv-status-change', (data) => {
+        console.log('📡 Cambio de estado recibido:', data)
+        setTVs(prevTvs => prevTvs.map(tv => {
+          if (tv.device_id === data.device_id) {
+            return {
+              ...tv,
+              status: data.status
+            }
+          }
+          return tv
+        }))
+      })
+
+      return () => {
+        socket.disconnect()
+      }
+    } catch (e) {
+      console.error('Error setup socket:', e)
+    }
+  }, [apiUrl])
 
   useEffect(() => {
     fetchTVs()
