@@ -171,19 +171,22 @@ function sendPlaybackUpdate() {
 }
 
 // Inicializar aplicación
-function init() {
+// Inicializar aplicación
+async function init() {
     console.log('🚀 Iniciando ProntoTV Cliente');
     console.log('📱 Device ID:', CONFIG.DEVICE_ID);
     console.log('📦 Modo APK:', AppState.isAPKMode);
 
-    // Cargar información de versión
-    fetch('version.json')
-        .then(res => res.json())
-        .then(info => {
-            AppState.versionInfo = info;
-            console.log('📦 Versión actual:', info);
-        })
-        .catch(e => console.warn('No se pudo cargar versión', e));
+    // Cargar información de versión de forma SÍNCRONA (await)
+    try {
+        const vRes = await fetch('version.json');
+        if (vRes.ok) {
+            AppState.versionInfo = await vRes.json();
+            console.log('📦 Versión actual:', AppState.versionInfo);
+        }
+    } catch (e) {
+        console.warn('⚠️ No se pudo cargar versión', e);
+    }
 
     // Inicializar WebSocket (solo si no es modo preview)
     if (!AppState.isPreviewMode) {

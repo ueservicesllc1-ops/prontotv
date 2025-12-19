@@ -1,7 +1,7 @@
 {
     "version": "1.0.0",
-    "buildNumber": 8,
+    "buildNumber": 9,
     "buildDate": "2025-12-19T13:40:00-05:00",
     "downloadUrl": "https://drive.google.com/uc?export=download&id=1-joJv2LvPmZ97ltgRIxPGd7bXFYRNPMN",
-    "releaseNotes": "v1.0.0 - Build 8\n• Visualización de versión en Admin\n• Mejoras en registro de dispositivo"
+    "releaseNotes": "v1.0.0 - Build 9\n• Corrección crítica en reporte de versión\n• Estabilización de inicio"
 }
