@@ -2002,11 +2002,12 @@ function hideError() {
 // Actualizar estado de conexión
 function updateConnectionStatus(connected) {
     AppState.isConnected = connected;
+    const ver = AppState.versionInfo ? ` (v${AppState.versionInfo.buildNumber})` : '';
 
     if (connected) {
         elements.status.classList.remove('offline');
         elements.status.classList.add('online');
-        elements.statusText.textContent = 'En línea';
+        elements.statusText.textContent = 'En línea' + ver;
     } else {
         elements.status.classList.remove('online');
         elements.status.classList.add('offline');
