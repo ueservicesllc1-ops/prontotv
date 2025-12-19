@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import axios from 'axios'
-import { FaCalendar, FaClock, FaVideo, FaCheck, FaPlay, FaImage, FaSun, FaBriefcase, FaClipboardList, FaBullseye, FaStar, FaUmbrellaBeach, FaTimes, FaEdit, FaPlayCircle } from 'react-icons/fa'
+import { FaCalendar, FaClock, FaVideo, FaCheck, FaPlay, FaImage, FaSun, FaBriefcase, FaClipboardList, FaBullseye, FaStar, FaUmbrellaBeach, FaTimes, FaEdit, FaPlayCircle, FaMapMarkerAlt } from 'react-icons/fa'
 
 function TVs({ apiUrl }) {
   const [tvs, setTVs] = useState([])
@@ -54,7 +54,7 @@ function TVs({ apiUrl }) {
 
   const handleDelete = async (id) => {
     if (!confirm('¿Estás seguro de eliminar esta TV?')) return
-    
+
     try {
       await axios.delete(`${apiUrl}/tvs/${id}`)
       fetchTVs()
@@ -118,7 +118,7 @@ function TVs({ apiUrl }) {
   const updateTotalDuration = (videos) => {
     const total = videos.reduce((sum, video) => sum + (video.duration || 0), 0)
     setTotalDuration(total)
-    
+
     // Actualizar hora de fin automáticamente si hay hora de inicio
     if (scheduleData.start_time && total > 0) {
       const start = new Date(`2000-01-01T${scheduleData.start_time}`)
@@ -198,18 +198,18 @@ function TVs({ apiUrl }) {
           selectedVideos.forEach(video => {
             totalDuration += video.duration || 0
           })
-          
+
           let endTime = scheduleData.end_time
           if (!endTime && totalDuration > 0) {
             const start = new Date(`2000-01-01T${scheduleData.start_time}`)
             const end = new Date(start.getTime() + totalDuration * 1000)
             endTime = end.toTimeString().slice(0, 5)
           }
-          
+
           // Crear programaciones con el MISMO start_time para que el servidor las agrupe
           for (let i = 0; i < selectedVideos.length; i++) {
             const video = selectedVideos[i]
-            
+
             await axios.post(`${apiUrl}/schedules`, {
               tv_id: selectedTV.id,
               video_id: video.id,
@@ -234,18 +234,18 @@ function TVs({ apiUrl }) {
             selectedVideos.forEach(video => {
               totalDuration += video.duration || 0
             })
-            
+
             let endTime = scheduleData.end_time
             if (!endTime && totalDuration > 0) {
               const start = new Date(`2000-01-01T${scheduleData.start_time}`)
               const end = new Date(start.getTime() + totalDuration * 1000)
               endTime = end.toTimeString().slice(0, 5)
             }
-            
+
             // Crear programaciones con el MISMO start_time para que el servidor las agrupe
             for (let i = 0; i < selectedVideos.length; i++) {
               const video = selectedVideos[i]
-              
+
               await axios.post(`${apiUrl}/schedules`, {
                 tv_id: selectedTV.id,
                 video_id: video.id,
@@ -265,14 +265,14 @@ function TVs({ apiUrl }) {
             for (const day of daysToSchedule) {
               const videoDuration = video.duration || 0
               let endTime = scheduleData.end_time
-              
+
               // Si no hay hora de fin, calcularla
               if (!endTime && videoDuration > 0) {
                 const start = new Date(`2000-01-01T${scheduleData.start_time}`)
                 const end = new Date(start.getTime() + videoDuration * 1000)
                 endTime = end.toTimeString().slice(0, 5)
               }
-              
+
               await axios.post(`${apiUrl}/schedules`, {
                 tv_id: selectedTV.id,
                 video_id: video.id,
@@ -287,7 +287,7 @@ function TVs({ apiUrl }) {
           }
         }
       }
-      
+
       // Mostrar mensaje apropiado
       if (selectedVideos.length > 1) {
         alert(`Programación creada exitosamente: 1 programación con ${selectedVideos.length} videos en secuencia`)
@@ -364,6 +364,7 @@ function TVs({ apiUrl }) {
                 <th>Nombre</th>
                 <th>Device ID</th>
                 <th>Estado</th>
+                <th>Ubicación</th>
                 <th>Última Conexión</th>
                 <th>Acciones</th>
               </tr>
@@ -378,9 +379,9 @@ function TVs({ apiUrl }) {
                           type="text"
                           value={editName}
                           onChange={(e) => setEditName(e.target.value)}
-                          style={{ 
-                            padding: '4px 8px', 
-                            border: '1px solid #ddd', 
+                          style={{
+                            padding: '4px 8px',
+                            border: '1px solid #ddd',
                             borderRadius: '4px',
                             fontSize: '14px',
                             width: '200px'
@@ -411,9 +412,9 @@ function TVs({ apiUrl }) {
                         <span>{tv.name}</span>
                         <button
                           onClick={() => handleEditName(tv)}
-                          style={{ 
-                            background: 'none', 
-                            border: 'none', 
+                          style={{
+                            background: 'none',
+                            border: 'none',
                             cursor: 'pointer',
                             color: '#F58342',
                             fontSize: '14px',
@@ -432,9 +433,30 @@ function TVs({ apiUrl }) {
                       {tv.status === 'online' ? 'En línea' : 'Desconectado'}
                     </span>
                   </td>
+                  <td>
+                    {tv.location ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <img
+                          src={`https://flagcdn.com/20x15/${tv.location.countryCode.toLowerCase()}.png`}
+                          alt={tv.location.country}
+                          title={tv.location.country}
+                          onError={(e) => { e.target.style.display = 'none' }}
+                          style={{ borderRadius: '2px', boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}
+                        />
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ fontSize: '13px', fontWeight: '500', color: '#333' }}>{tv.location.city}</span>
+                          <span style={{ fontSize: '11px', color: '#666' }}>{tv.location.region}</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <span style={{ color: '#aaa', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <FaMapMarkerAlt /> Desconocida
+                      </span>
+                    )}
+                  </td>
                   <td>{tv.last_seen ? new Date(tv.last_seen).toLocaleString() : 'Nunca'}</td>
                   <td>
-                    <button 
+                    <button
                       className="btn btn-primary"
                       onClick={() => handlePlayVideo(tv)}
                       style={{ marginRight: '10px', marginBottom: '5px' }}
@@ -443,11 +465,11 @@ function TVs({ apiUrl }) {
                       <FaPlayCircle style={{ marginRight: '6px' }} />
                       Reproducir Ahora
                     </button>
-                    <button 
+                    <button
                       className="btn"
                       onClick={() => handleSchedule(tv)}
-                      style={{ 
-                        marginRight: '10px', 
+                      style={{
+                        marginRight: '10px',
                         marginBottom: '5px',
                         background: '#10b981',
                         color: 'white'
@@ -455,7 +477,7 @@ function TVs({ apiUrl }) {
                     >
                       <FaCalendar style={{ marginRight: '8px' }} /> Programar
                     </button>
-                    <button 
+                    <button
                       className="btn btn-danger"
                       onClick={() => handleDelete(tv.id)}
                       style={{ marginBottom: '5px' }}
@@ -477,8 +499,8 @@ function TVs({ apiUrl }) {
               <h3><FaPlayCircle style={{ marginRight: '8px', verticalAlign: 'middle' }} />Reproducir Video en {selectedVideo?.name}</h3>
               <button className="close-btn" onClick={() => setShowModal(false)}>×</button>
             </div>
-            
-            <div style={{ 
+
+            <div style={{
               marginBottom: '20px',
               padding: '15px',
               background: '#f0f4ff',
@@ -494,9 +516,9 @@ function TVs({ apiUrl }) {
               </p>
             </div>
 
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', 
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
               gap: '15px',
               maxHeight: '400px',
               overflowY: 'auto',
@@ -537,8 +559,8 @@ function TVs({ apiUrl }) {
                       }}
                     >
                       {thumbnail ? (
-                        <img 
-                          src={thumbnail} 
+                        <img
+                          src={thumbnail}
                           alt={video.name}
                           style={{ width: '100%', height: '100px', objectFit: 'cover' }}
                           onError={(e) => {
@@ -560,9 +582,9 @@ function TVs({ apiUrl }) {
                         </div>
                       )}
                       <div style={{ padding: '10px' }}>
-                        <div style={{ 
-                          fontSize: '12px', 
-                          fontWeight: '600', 
+                        <div style={{
+                          fontSize: '12px',
+                          fontWeight: '600',
                           marginBottom: '4px',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
@@ -624,11 +646,11 @@ function TVs({ apiUrl }) {
                 <FaVideo style={{ color: '#F58342' }} />
                 Seleccionar Videos ({selectedVideos.length} seleccionado{selectedVideos.length !== 1 ? 's' : ''})
               </label>
-              <div 
+              <div
                 className="video-selection-grid"
-                style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', 
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
                   gap: '15px',
                   maxHeight: '500px',
                   overflowY: 'auto',
@@ -670,8 +692,8 @@ function TVs({ apiUrl }) {
                       >
                         <div style={{ position: 'relative', width: '100%', height: '100px', overflow: 'hidden' }}>
                           {thumbnail ? (
-                            <img 
-                              src={thumbnail} 
+                            <img
+                              src={thumbnail}
                               alt={video.name}
                               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                               onError={(e) => {
@@ -738,9 +760,9 @@ function TVs({ apiUrl }) {
                           </button>
                         </div>
                         <div style={{ padding: '10px' }}>
-                          <div style={{ 
-                            fontSize: '12px', 
-                            fontWeight: '600', 
+                          <div style={{
+                            fontSize: '12px',
+                            fontWeight: '600',
                             marginBottom: '4px',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
@@ -805,7 +827,7 @@ function TVs({ apiUrl }) {
                     </strong>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '5px' }}>
                       {selectedVideos.map((video, index) => (
-                        <span 
+                        <span
                           key={video.id}
                           style={{
                             background: 'white',
@@ -851,7 +873,7 @@ function TVs({ apiUrl }) {
                 <input
                   type="time"
                   value={scheduleData.end_time}
-                  onChange={(e) => setScheduleData({...scheduleData, end_time: e.target.value})}
+                  onChange={(e) => setScheduleData({ ...scheduleData, end_time: e.target.value })}
                   style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '16px' }}
                 />
                 <small style={{ color: '#666', marginTop: '5px', display: 'block' }}>
@@ -866,9 +888,9 @@ function TVs({ apiUrl }) {
                 <FaCalendar style={{ color: '#667eea' }} />
                 Días de la Semana
               </label>
-              <div style={{ 
-                display: 'grid', 
-                gridTemplateColumns: 'repeat(7, 1fr)', 
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(7, 1fr)',
                 gap: '10px',
                 marginTop: '10px'
               }}>
@@ -883,7 +905,7 @@ function TVs({ apiUrl }) {
                 ].map(day => {
                   const IconComponent = day.icon;
                   return (
-                    <label 
+                    <label
                       key={day.value}
                       style={{
                         display: 'flex',
@@ -917,9 +939,9 @@ function TVs({ apiUrl }) {
             </div>
 
             {/* Opciones adicionales */}
-            <div style={{ 
-              background: '#f9fafb', 
-              padding: '15px', 
+            <div style={{
+              background: '#f9fafb',
+              padding: '15px',
               borderRadius: '8px',
               marginBottom: '20px'
             }}>
@@ -928,10 +950,10 @@ function TVs({ apiUrl }) {
                   <input
                     type="checkbox"
                     checked={scheduleData.loop}
-                    onChange={(e) => setScheduleData({...scheduleData, loop: e.target.checked})}
+                    onChange={(e) => setScheduleData({ ...scheduleData, loop: e.target.checked })}
                     style={{ marginRight: '10px', width: '18px', height: '18px', cursor: 'pointer' }}
                   />
-                    <div>
+                  <div>
                     <strong style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <FaPlay style={{ fontSize: '14px' }} />
                       Loop
@@ -940,8 +962,8 @@ function TVs({ apiUrl }) {
                       {selectedVideos.length === 0
                         ? 'Selecciona al menos un video para activar'
                         : selectedVideos.length === 1
-                        ? 'El video se reproducirá en loop continuo'
-                        : 'Los videos se reproducirán en secuencia y luego volverán al inicio (loop continuo)'}
+                          ? 'El video se reproducirá en loop continuo'
+                          : 'Los videos se reproducirán en secuencia y luego volverán al inicio (loop continuo)'}
                     </div>
                   </div>
                 </label>
@@ -952,7 +974,7 @@ function TVs({ apiUrl }) {
                   <input
                     type="checkbox"
                     checked={scheduleData.is_active}
-                    onChange={(e) => setScheduleData({...scheduleData, is_active: e.target.checked})}
+                    onChange={(e) => setScheduleData({ ...scheduleData, is_active: e.target.checked })}
                     style={{ marginRight: '10px', width: '18px', height: '18px', cursor: 'pointer' }}
                   />
                   <strong>Programación Activa</strong>
@@ -961,9 +983,9 @@ function TVs({ apiUrl }) {
             </div>
 
             <div className="modal-footer">
-              <button 
-                type="button" 
-                className="btn btn-secondary" 
+              <button
+                type="button"
+                className="btn btn-secondary"
                 onClick={() => {
                   setShowScheduleModal(false)
                   setSelectedTV(null)
@@ -972,13 +994,13 @@ function TVs({ apiUrl }) {
               >
                 Cancelar
               </button>
-              <button 
-                type="button" 
-                className="btn btn-primary" 
+              <button
+                type="button"
+                className="btn btn-primary"
                 onClick={handleSaveSchedule}
                 disabled={selectedVideos.length === 0 || !scheduleData.start_time}
-                style={{ 
-                  fontSize: '16px', 
+                style={{
+                  fontSize: '16px',
                   padding: '12px 24px',
                   background: selectedVideos.length === 0 || !scheduleData.start_time ? '#ccc' : '#F58342'
                 }}
@@ -992,16 +1014,16 @@ function TVs({ apiUrl }) {
 
       {/* Modal de Vista Previa del Video */}
       {previewVideo && (
-        <div 
-          className="modal" 
+        <div
+          className="modal"
           onClick={() => setPreviewVideo(null)}
           style={{ zIndex: 2000 }}
         >
-          <div 
-            className="modal-content" 
+          <div
+            className="modal-content"
             onClick={(e) => e.stopPropagation()}
-            style={{ 
-              maxWidth: '600px', 
+            style={{
+              maxWidth: '600px',
               width: '90%',
               padding: '20px',
               background: '#1a1a1a'
@@ -1009,16 +1031,16 @@ function TVs({ apiUrl }) {
           >
             <div className="modal-header" style={{ marginBottom: '15px', borderBottom: '1px solid #333' }}>
               <h3 style={{ color: 'white', margin: 0 }}>{previewVideo.name}</h3>
-              <button 
-                className="close-btn" 
+              <button
+                className="close-btn"
                 onClick={() => setPreviewVideo(null)}
                 style={{ color: 'white', fontSize: '28px' }}
               >
                 ×
               </button>
             </div>
-            <div style={{ 
-              width: '100%', 
+            <div style={{
+              width: '100%',
               aspectRatio: '16/9',
               background: '#000',
               borderRadius: '8px',

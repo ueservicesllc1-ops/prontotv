@@ -23,7 +23,19 @@ const PORT = process.env.PORT || 3000;
 // Configurar Socket.io con CORS
 const io = new Server(http, {
   cors: {
-    origin: allowedOrigins.includes('*') ? '*' : allowedOrigins,
+    origin: (origin, callback) => {
+      // Permitir requests sin origin, capacitor, file, localhost (Android TV)
+      if (!origin || origin.startsWith('capacitor://') || origin.startsWith('file://') || origin === 'https://localhost') {
+        return callback(null, true);
+      }
+
+      if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes('*')) {
+        callback(null, true);
+      } else {
+        console.warn('❌ Socket.io CORS blocked:', origin);
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     methods: ['GET', 'POST'],
     credentials: true
   }
@@ -135,10 +147,43 @@ app.post('/api/tvs/register', async (req, res) => {
       new Promise((resolve) => setTimeout(() => resolve({ empty: true, docs: [] }), 2000))
     ]);
 
+    // Obtener IP y Location
+    let ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    if (ip && ip.includes(',')) ip = ip.split(',')[0].trim();
+
+    // Limpiar IP formato IPv6 mapped IPv4 (::ffff:127.0.0.1)
+    if (ip && ip.includes('::ffff:')) ip = ip.replace('::ffff:', '');
+
+    // Obtener ubicación
+    let location = null;
+    try {
+      if (ip && ip !== '::1' && ip !== '127.0.0.1' && !ip.startsWith('192.168.') && !ip.startsWith('10.')) {
+        console.log(`[Geo] Buscando ubicación para IP: ${ip}`);
+        const geoResponse = await fetch(`http://ip-api.com/json/${ip}?fields=status,country,countryCode,regionName,city,lat,lon`);
+        const geoData = await geoResponse.json();
+
+        if (geoData.status === 'success') {
+          location = {
+            country: geoData.country,
+            countryCode: geoData.countryCode,
+            region: geoData.regionName,
+            city: geoData.city,
+            lat: geoData.lat,
+            lon: geoData.lon
+          };
+          console.log(`[Geo] Ubicación encontrada: ${location.city}, ${location.country}`);
+        }
+      }
+    } catch (geoError) {
+      console.error('[Geo] Error obteniendo ubicación:', geoError);
+    }
+
     let tvData = {
       device_id,
       name: name || `TV-${device_id.slice(-6)}`,
       status: 'online',
+      ip: ip || null,
+      location: location || null,
       last_seen: toTimestamp(new Date()),
       updated_at: toTimestamp(new Date())
     };
@@ -166,6 +211,8 @@ app.post('/api/tvs/register', async (req, res) => {
       // Actualizar solo los campos necesarios, preservando el nombre personalizado
       const updateData = {
         status: 'online',
+        ip: ip || null,
+        location: location || null,
         last_seen: toTimestamp(new Date()),
         updated_at: toTimestamp(new Date())
       };
