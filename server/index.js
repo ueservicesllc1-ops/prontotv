@@ -12,7 +12,7 @@ const app = express();
 
 // Middleware
 // Configurar CORS con dominios permitidos
-const allowedOrigins = process.env.ALLOWED_ORIGINS 
+const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
   : ['http://localhost:3000', 'http://localhost:5173'];
 
@@ -33,7 +33,7 @@ app.use(cors({
   origin: function (origin, callback) {
     // Permitir requests sin origin (mobile apps, Postman, etc.)
     if (!origin) return callback(null, true);
-    
+
     if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes('*')) {
       callback(null, true);
     } else {
@@ -96,9 +96,9 @@ app.post('/api/tvs/register', async (req, res) => {
   const timeout = setTimeout(() => {
     if (!res.headersSent) {
       const { device_id, name } = req.body;
-      res.json({ 
-        id: 'temp_' + Date.now(), 
-        device_id, 
+      res.json({
+        id: 'temp_' + Date.now(),
+        device_id,
         name: name || `TV-${device_id.slice(-6)}`,
         status: 'online',
         message: 'Registrado (modo offline)'
@@ -108,7 +108,7 @@ app.post('/api/tvs/register', async (req, res) => {
 
   try {
     const { device_id, name } = req.body;
-    
+
     if (!device_id) {
       clearTimeout(timeout);
       return res.status(400).json({ error: 'device_id is required' });
@@ -144,21 +144,21 @@ app.post('/api/tvs/register', async (req, res) => {
       // Actualizar TV existente - NO sobrescribir el nombre personalizado
       const doc = snapshot.docs[0];
       const existingData = doc.data();
-      
+
       // Preservar el nombre existente - NO sobrescribir con nombre por defecto del cliente
       const existingName = existingData.name || '';
       const incomingName = name || `TV-${device_id.slice(-6)}`;
-      
+
       // Detectar si el nombre entrante es el predeterminado (formato TV-XXXXXX)
       const isDefaultIncomingName = incomingName.match(/^TV-[a-z0-9]{6,9}$/i);
-      
+
       // Actualizar solo los campos necesarios, preservando el nombre personalizado
       const updateData = {
         status: 'online',
         last_seen: toTimestamp(new Date()),
         updated_at: toTimestamp(new Date())
       };
-      
+
       // Si el TV ya tiene un nombre personalizado (no es el predeterminado),
       // y el nombre entrante es el predeterminado, NO sobrescribir
       if (existingName && existingName.trim() !== '' && isDefaultIncomingName) {
@@ -172,17 +172,17 @@ app.post('/api/tvs/register', async (req, res) => {
         // Si no hay nombre existente, usar el entrante
         updateData.name = incomingName;
       }
-      
+
       await doc.ref.update(updateData);
-      
+
       clearTimeout(timeout);
       if (!res.headersSent) {
-        res.json({ 
-          id: doc.id, 
-          ...existingData, 
-          ...updateData, 
-          device_id, 
-          name: updateData.name 
+        res.json({
+          id: doc.id,
+          ...existingData,
+          ...updateData,
+          device_id,
+          name: updateData.name
         });
       }
     }
@@ -190,9 +190,9 @@ app.post('/api/tvs/register', async (req, res) => {
     clearTimeout(timeout);
     console.error('Error registering TV:', error);
     if (!res.headersSent) {
-      res.json({ 
-        id: 'temp_' + Date.now(), 
-        device_id: req.body.device_id, 
+      res.json({
+        id: 'temp_' + Date.now(),
+        device_id: req.body.device_id,
         name: req.body.name || `TV-${req.body.device_id?.slice(-6)}`,
         status: 'online',
         message: 'Registrado (modo offline)'
@@ -205,7 +205,7 @@ app.post('/api/tvs/register', async (req, res) => {
 app.get('/api/tvs', async (req, res) => {
   console.log('[GET /api/tvs] Iniciando consulta de TVs...');
   console.log('[GET /api/tvs] Firebase inicializado:', !!db);
-  
+
   // Timeout de 3 segundos
   const timeout = setTimeout(() => {
     if (!res.headersSent) {
@@ -227,11 +227,11 @@ app.get('/api/tvs', async (req, res) => {
         }),
       new Promise((resolve) => setTimeout(() => resolve({ docs: [] }), 2000))
     ]);
-    
+
     clearTimeout(timeout);
-    
+
     console.log(`[GET /api/tvs] ✅ TVs encontradas: ${snapshot.docs.length}`);
-    
+
     const tvs = snapshot.docs.map(doc => {
       const data = doc.data();
       // Calcular status basado en last_seen
@@ -239,7 +239,7 @@ app.get('/api/tvs', async (req, res) => {
       const now = new Date();
       const minutesSinceLastSeen = lastSeen ? (now - lastSeen) / (1000 * 60) : Infinity;
       const status = minutesSinceLastSeen < 2 ? 'online' : 'offline';
-      
+
       return {
         id: doc.id,
         ...data,
@@ -248,7 +248,7 @@ app.get('/api/tvs', async (req, res) => {
         last_seen: toDate(data.last_seen)?.toISOString()
       };
     });
-    
+
     if (!res.headersSent) {
       console.log(`[GET /api/tvs] 📤 Enviando ${tvs.length} TVs al cliente`);
       res.json(tvs);
@@ -267,15 +267,15 @@ app.get('/api/tvs', async (req, res) => {
 app.patch('/api/tvs/:id', async (req, res) => {
   try {
     const { name, aspect_ratio } = req.body;
-    
+
     // Validar que al menos un campo se esté actualizando
     if (name === undefined && aspect_ratio === undefined) {
       return res.status(400).json({ error: 'At least one field (name or aspect_ratio) must be provided' });
     }
-    
+
     const docRef = db.collection(COLLECTIONS.TVS).doc(req.params.id);
     const doc = await docRef.get();
-    
+
     if (!doc.exists) {
       return res.status(404).json({ error: 'TV not found' });
     }
@@ -306,7 +306,7 @@ app.patch('/api/tvs/:id', async (req, res) => {
 
     const updatedDoc = await docRef.get();
     const data = updatedDoc.data();
-    
+
     res.json({
       id: updatedDoc.id,
       ...data,
@@ -323,11 +323,11 @@ app.patch('/api/tvs/:id', async (req, res) => {
 app.get('/api/tvs/:id', async (req, res) => {
   try {
     const doc = await db.collection(COLLECTIONS.TVS).doc(req.params.id).get();
-    
+
     if (!doc.exists) {
       return res.status(404).json({ error: 'TV not found' });
     }
-    
+
     const data = doc.data();
     res.json({
       id: doc.id,
@@ -358,19 +358,19 @@ app.delete('/api/tvs/:id', async (req, res) => {
 app.post('/api/videos', async (req, res) => {
   try {
     const { name, url, duration, type, images, display_mode, interval } = req.body;
-    
+
     if (!name || !url) {
       return res.status(400).json({ error: 'Name and URL are required' });
     }
 
     // Detectar si la URL ya es de Bunny CDN
     const isBunnyUrl = url.includes('b-cdn.net');
-    
+
     // Convertir URL a Bunny CDN si está configurado y no es ya Bunny
     let finalUrl = url;
     let bunnyUrl = isBunnyUrl ? url : null;
     let b2Url = url.includes('backblazeb2.com') ? url : null;
-    
+
     if (!isBunnyUrl && process.env.USE_BUNNY_CDN === 'true' && process.env.BUNNY_CDN_URL) {
       // Si la URL es de B2 o es relativa, convertirla
       if (url.includes('backblazeb2.com') || url.startsWith('/')) {
@@ -419,17 +419,17 @@ app.patch('/api/videos/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const updateData = req.body;
-    
+
     console.log(`[PATCH /api/videos/:id] Actualizando video ${id} con datos:`, updateData);
-    
+
     const docRef = db.collection(COLLECTIONS.VIDEOS).doc(id);
     const doc = await docRef.get();
-    
+
     if (!doc.exists) {
       console.log(`[PATCH /api/videos/:id] ❌ Video ${id} no encontrado en Firestore`);
       return res.status(404).json({ error: 'Video not found' });
     }
-    
+
     // Preparar datos de actualización
     const dataToUpdate = {};
     if (updateData.duration !== undefined) {
@@ -441,11 +441,11 @@ app.patch('/api/videos/:id', async (req, res) => {
     if (updateData.url !== undefined) {
       dataToUpdate.url = updateData.url;
     }
-    
+
     dataToUpdate.updated_at = toTimestamp(new Date());
-    
+
     await docRef.update(dataToUpdate);
-    
+
     const updatedDoc = await docRef.get();
     res.json({ id: updatedDoc.id, ...updatedDoc.data() });
   } catch (error) {
@@ -460,10 +460,10 @@ app.get('/api/videos', async (req, res) => {
     const snapshot = await db.collection(COLLECTIONS.VIDEOS)
       .orderBy('created_at', 'desc')
       .get();
-    
+
     const videos = snapshot.docs.map(doc => {
       const videoData = doc.data();
-      
+
       // Convertir URL a Bunny CDN si está configurado y la URL es de B2
       let videoUrl = videoData.url;
       if (process.env.USE_BUNNY_CDN === 'true' && process.env.BUNNY_CDN_URL) {
@@ -476,12 +476,12 @@ app.get('/api/videos', async (req, res) => {
           videoUrl = convertToBunnyCDN(videoUrl);
         }
       }
-      
+
       // Determinar si tiene URL de Bunny CDN
       const hasBunnyUrl = videoUrl && videoUrl.includes('b-cdn.net');
       const bunnyUrl = hasBunnyUrl ? videoUrl : (videoData.bunnyUrl || null);
       const b2Url = videoData.b2Url || videoData.originalUrl || videoData.url;
-      
+
       return {
         id: doc.id,
         ...videoData,
@@ -493,7 +493,7 @@ app.get('/api/videos', async (req, res) => {
         created_at: toDate(videoData.created_at)?.toISOString()
       };
     });
-    
+
     res.json(videos);
   } catch (error) {
     console.error('Error fetching videos:', error);
@@ -518,14 +518,14 @@ app.delete('/api/videos/:id', async (req, res) => {
 app.post('/api/schedules', async (req, res) => {
   try {
     const { tv_id, video_id, start_time, end_time, day_of_week, is_active, days, sequence_order, is_loop } = req.body;
-    
+
     if (!tv_id || !video_id || !start_time) {
       return res.status(400).json({ error: 'TV ID, Video ID and Start Time are required' });
     }
 
     // Si se envía un array de días, crear múltiples programaciones
-    const daysToSchedule = days && Array.isArray(days) && days.length > 0 ? days : 
-                          (day_of_week !== undefined && day_of_week !== null ? [day_of_week] : [null]);
+    const daysToSchedule = days && Array.isArray(days) && days.length > 0 ? days :
+      (day_of_week !== undefined && day_of_week !== null ? [day_of_week] : [null]);
 
     const results = [];
 
@@ -562,7 +562,7 @@ app.post('/api/schedules', async (req, res) => {
 app.get('/api/schedules/tv/:tv_id', async (req, res) => {
   try {
     const { tv_id } = req.params;
-    
+
     // Obtener TV por ID o device_id
     let tvDoc;
     try {
@@ -592,7 +592,7 @@ app.get('/api/schedules/tv/:tv_id', async (req, res) => {
       const scheduleData = doc.data();
       const videoDoc = await db.collection(COLLECTIONS.VIDEOS).doc(scheduleData.video_id).get();
       const videoData = videoDoc.exists ? videoDoc.data() : null;
-      
+
       return {
         id: doc.id,
         ...scheduleData,
@@ -619,12 +619,12 @@ app.get('/api/schedules', async (req, res) => {
 
     const schedules = await Promise.all(schedulesSnapshot.docs.map(async (doc) => {
       const scheduleData = doc.data();
-      
+
       const [tvDoc, videoDoc] = await Promise.all([
         db.collection(COLLECTIONS.TVS).doc(scheduleData.tv_id).get(),
         db.collection(COLLECTIONS.VIDEOS).doc(scheduleData.video_id).get()
       ]);
-      
+
       return {
         id: doc.id,
         ...scheduleData,
@@ -654,6 +654,31 @@ app.delete('/api/schedules/:id', async (req, res) => {
 });
 
 // ========== CLIENT ENDPOINTS ==========
+
+// Obtener versión actual del APK (para sistema de actualización)
+app.get('/api/client/version', async (req, res) => {
+  try {
+    // Leer el archivo version.json del cliente
+    const versionPath = path.join(__dirname, '../cliente/www/version.json');
+
+    if (fs.existsSync(versionPath)) {
+      const versionData = JSON.parse(fs.readFileSync(versionPath, 'utf8'));
+      res.json(versionData);
+    } else {
+      // Si no existe el archivo, devolver versión por defecto
+      res.json({
+        version: '1.0.0',
+        buildNumber: 1,
+        buildDate: new Date().toISOString(),
+        downloadUrl: 'https://drive.google.com/uc?export=download&id=1-joJv2LvPmZ97ltgRIxPGd7bXFYRNPMN',
+        releaseNotes: 'Versión inicial'
+      });
+    }
+  } catch (error) {
+    console.error('Error obteniendo versión:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // Obtener programación actual para un TV (usado por el cliente)
 app.get('/api/client/playback/:device_id', async (req, res) => {
@@ -715,12 +740,12 @@ app.get('/api/client/playback/:device_id', async (req, res) => {
 
     // Filtrar programaciones válidas para el momento actual
     const validSchedules = [];
-    
+
     console.log(`[Playback] Device: ${device_id}, Current time: ${currentTime}, Day of week: ${dayOfWeek}`);
-    
+
     for (const doc of schedulesSnapshot.docs) {
       const schedule = doc.data();
-      
+
       console.log(`[Playback] Checking schedule:`, {
         id: doc.id,
         start_time: schedule.start_time,
@@ -728,7 +753,7 @@ app.get('/api/client/playback/:device_id', async (req, res) => {
         day_of_week: schedule.day_of_week,
         is_active: schedule.is_active
       });
-      
+
       // Verificar día de la semana
       if (schedule.day_of_week !== null && schedule.day_of_week !== dayOfWeek) {
         console.log(`[Playback] Schedule ${doc.id} skipped: day mismatch (${schedule.day_of_week} !== ${dayOfWeek})`);
@@ -763,9 +788,9 @@ app.get('/api/client/playback/:device_id', async (req, res) => {
         console.log(`[Playback] Schedule ${doc.id} skipped: start time not reached (${normalizedStartTime} > ${normalizedCurrentTime})`);
       }
     }
-    
+
     console.log(`[Playback] Found ${validSchedules.length} valid schedules`);
-    
+
     if (validSchedules.length === 0) {
       console.log(`[Playback] No valid schedules found. Current time: ${currentTime}, Day: ${dayOfWeek}`);
       console.log(`[Playback] Total schedules checked: ${schedulesSnapshot.docs.length}`);
@@ -779,28 +804,28 @@ app.get('/api/client/playback/:device_id', async (req, res) => {
         const bIsImmediate = b.is_immediate === 1;
         if (aIsImmediate && !bIsImmediate) return -1;
         if (!aIsImmediate && bIsImmediate) return 1;
-        
+
         // Prioridad 2: Por campo priority (mayor = más prioridad)
         if (a.priority && b.priority) {
           return b.priority - a.priority; // Mayor prioridad primero
         }
         if (a.priority) return -1;
         if (b.priority) return 1;
-        
+
         // Prioridad 3: Por sequence_order si existe
         if (a.sequence_order !== null && b.sequence_order !== null) {
           return a.sequence_order - b.sequence_order;
         }
         if (a.sequence_order !== null) return -1;
         if (b.sequence_order !== null) return 1;
-        
+
         // Prioridad 4: Por start_time (más reciente primero para programaciones inmediatas)
         if (aIsImmediate && bIsImmediate) {
           return b.start_time.localeCompare(a.start_time); // Más reciente primero
         }
         return a.start_time.localeCompare(b.start_time);
       });
-      
+
       console.log(`[Playback] Schedules ordenados. Primera programación:`, {
         id: validSchedules[0].id,
         video_id: validSchedules[0].video_id,
@@ -813,7 +838,7 @@ app.get('/api/client/playback/:device_id', async (req, res) => {
       const firstSchedule = validSchedules[0];
       // Detectar secuencia: si tiene sequence_order, es parte de una secuencia
       const isSequence = firstSchedule.sequence_order !== null;
-      
+
       if (isSequence) {
         // Obtener todos los videos de la secuencia (con o sin loop)
         // Buscar TODAS las programaciones con sequence_order de la misma TV y mismo start_time
@@ -821,16 +846,16 @@ app.get('/api/client/playback/:device_id', async (req, res) => {
         const sequenceStartTime = firstSchedule.start_time;
         const sequenceSchedules = schedulesSnapshot.docs
           .map(doc => ({ id: doc.id, ...doc.data() }))
-          .filter(s => 
-            s.sequence_order !== null && 
-            s.tv_id === tvId && 
+          .filter(s =>
+            s.sequence_order !== null &&
+            s.tv_id === tvId &&
             s.start_time === sequenceStartTime &&
             s.is_active === 1
           );
         sequenceSchedules.sort((a, b) => a.sequence_order - b.sequence_order);
-        
+
         console.log(`[Playback] Secuencia detectada: ${sequenceSchedules.length} videos con start_time ${sequenceStartTime}`);
-        
+
         const sequenceVideos = await Promise.all(
           sequenceSchedules.map(async (schedule) => {
             const videoDoc = await db.collection(COLLECTIONS.VIDEOS).doc(schedule.video_id).get();
@@ -846,7 +871,7 @@ app.get('/api/client/playback/:device_id', async (req, res) => {
         );
 
         const validVideos = sequenceVideos.filter(v => v !== null);
-        
+
         if (validVideos.length > 0) {
           // Actualizar reproducción actual
           const playbackRef = db.collection(COLLECTIONS.CURRENT_PLAYBACK).doc(tvId);
@@ -870,7 +895,7 @@ app.get('/api/client/playback/:device_id', async (req, res) => {
               type: v.type || 'video'
             };
           });
-          
+
           clearTimeout(timeout);
           res.json({
             content: {
@@ -890,10 +915,10 @@ app.get('/api/client/playback/:device_id', async (req, res) => {
       // Programación normal (un solo video)
       const activeSchedule = validSchedules[0];
       const videoDoc = await db.collection(COLLECTIONS.VIDEOS).doc(activeSchedule.video_id).get();
-      
+
       if (videoDoc.exists) {
         const videoData = videoDoc.data();
-        
+
         // Actualizar reproducción actual
         const playbackRef = db.collection(COLLECTIONS.CURRENT_PLAYBACK).doc(tvId);
         await playbackRef.set({
@@ -906,14 +931,14 @@ app.get('/api/client/playback/:device_id', async (req, res) => {
         const url = videoData.url.toLowerCase();
         const isImage = /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(url);
         const contentType = videoData.type || (isImage ? 'image' : 'video');
-        
+
         // Preparar respuesta según el tipo
         // Convertir URL a Bunny CDN si está configurado
         let videoUrl = videoData.url;
         console.log(`[Playback] Video URL original: ${videoUrl}`);
         console.log(`[Playback] USE_BUNNY_CDN: ${process.env.USE_BUNNY_CDN}`);
         console.log(`[Playback] BUNNY_CDN_URL: ${process.env.BUNNY_CDN_URL}`);
-        
+
         if (process.env.USE_BUNNY_CDN === 'true' && process.env.BUNNY_CDN_URL) {
           const originalUrl = videoUrl;
           videoUrl = convertToBunnyCDN(videoData.url);
@@ -921,7 +946,7 @@ app.get('/api/client/playback/:device_id', async (req, res) => {
         } else {
           console.log(`[Playback] Bunny CDN no configurado, usando URL original`);
         }
-        
+
         let content = {
           url: videoUrl,
           name: videoData.name,
@@ -973,7 +998,7 @@ app.get('/api/client/playback/:device_id', async (req, res) => {
           schedule_id: activeSchedule.id,
           is_immediate: activeSchedule.is_immediate
         });
-        
+
         clearTimeout(timeout);
         res.json({
           content: content,
@@ -1020,7 +1045,7 @@ app.post('/api/client/play/:device_id', async (req, res) => {
 
     // Verificar video
     const videoDoc = await db.collection(COLLECTIONS.VIDEOS).doc(video_id).get();
-    
+
     if (!videoDoc.exists) {
       return res.status(404).json({ error: 'Video not found' });
     }
@@ -1034,7 +1059,7 @@ app.post('/api/client/play/:device_id', async (req, res) => {
       .where('tv_id', '==', tvId)
       .where('is_active', '==', 1)
       .get();
-    
+
     // Desactivar otras programaciones (se reactivarán después de un tiempo o manualmente)
     const batch = db.batch();
     activeSchedulesSnapshot.docs.forEach(doc => {
@@ -1057,7 +1082,7 @@ app.post('/api/client/play/:device_id', async (req, res) => {
 
     const newScheduleRef = await db.collection(COLLECTIONS.SCHEDULES).add(scheduleData);
     console.log(`[Play Now] Programación inmediata creada: ${newScheduleRef.id} para video ${video_id}`);
-    
+
     res.json({ success: true, video: { id: videoDoc.id, ...videoData }, schedule_id: newScheduleRef.id });
   } catch (error) {
     console.error('Error playing video:', error);
@@ -1076,11 +1101,11 @@ app.post('/api/upload', upload.single('video'), async (req, res) => {
 
     const { name, folder } = req.body;
     const file = req.file;
-    
+
     // Generar nombre único si no se proporciona
     const timestamp = Date.now();
     const originalName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const fileName = name 
+    const fileName = name
       ? `${name.replace(/[^a-zA-Z0-9.-]/g, '_')}_${timestamp}.${originalName.split('.').pop()}`
       : `${timestamp}_${originalName}`;
 
@@ -1107,8 +1132,8 @@ app.post('/api/upload', upload.single('video'), async (req, res) => {
       key: uploadResult.key,
       name: fileName,
       size: uploadResult.size,
-      message: uploadResult.url && uploadResult.url.includes('b-cdn.net') 
-        ? 'Video subido exitosamente a B2 y servido desde Bunny CDN' 
+      message: uploadResult.url && uploadResult.url.includes('b-cdn.net')
+        ? 'Video subido exitosamente a B2 y servido desde Bunny CDN'
         : 'Video subido exitosamente a B2'
     });
   } catch (error) {
@@ -1180,7 +1205,7 @@ io.on('connection', (socket) => {
       socket.device_id = device_id;
       socket.join(`tv-${device_id}`);
       console.log(`📺 TV registrado vía WebSocket: ${device_id}`);
-      
+
       // Enviar estado actual si existe
       if (tvPlaybackState.has(device_id)) {
         socket.emit('playback-state', tvPlaybackState.get(device_id));
@@ -1191,7 +1216,7 @@ io.on('connection', (socket) => {
   // Cuando un TV actualiza su estado de reproducción
   socket.on('playback-update', (data) => {
     const { device_id, currentTime, videoUrl, videoName, duration, isPlaying, videoIndex, totalVideos, sequenceLoop } = data;
-    
+
     if (device_id) {
       const state = {
         device_id,
@@ -1205,13 +1230,13 @@ io.on('connection', (socket) => {
         sequenceLoop: sequenceLoop || false,
         timestamp: Date.now()
       };
-      
+
       // Guardar estado
       tvPlaybackState.set(device_id, state);
-      
+
       // Broadcast a todos los admins conectados
       io.to('admins').emit('tv-playback-update', state);
-      
+
       console.log(`📊 Estado actualizado para TV ${device_id}:`, {
         video: videoName,
         time: `${Math.floor(currentTime)}s / ${Math.floor(duration)}s`,
@@ -1224,14 +1249,14 @@ io.on('connection', (socket) => {
   socket.on('admin-connect', () => {
     socket.join('admins');
     console.log('👤 Admin conectado:', socket.id);
-    
+
     // Enviar todos los estados actuales guardados
     const allStates = Array.from(tvPlaybackState.entries()).map(([device_id, state]) => ({
       device_id,
       ...state
     }));
     socket.emit('all-playback-states', allStates);
-    
+
     // Solicitar estado actual a todos los TVs conectados
     io.emit('request-playback-state');
   });
@@ -1245,7 +1270,7 @@ io.on('connection', (socket) => {
         ...state
       }));
       socket.emit('all-playback-states', allStates);
-      
+
       // Solicitar estado actual a todos los TVs
       io.emit('request-playback-state');
     }

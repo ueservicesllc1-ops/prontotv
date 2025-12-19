@@ -1,0 +1,7 @@
+{
+    "version": "1.0.0",
+    "buildNumber": 5,
+    "buildDate": "2025-12-19T11:58:14-05:00",
+    "downloadUrl": "https://drive.google.com/uc?export=download&id=1-joJv2LvPmZ97ltgRIxPGd7bXFYRNPMN",
+    "releaseNotes": "v1.0.0 - Build 5\n• Registro de dispositivo en segundo plano\n• Evita timeouts de Firebase\n• Conexión más rápida (1 segundo)\n• Va directo a buscar contenido"
+}
