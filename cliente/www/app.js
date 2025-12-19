@@ -1098,7 +1098,26 @@ function playVideo(content) {
             console.error('❌ Error al reproducir video:', error);
             console.error('URL del video:', content.url);
             console.error('Tipo de error:', error.name, error.message);
-            // Intentar de nuevo después de un delay
+
+            // MANEJO ESPECIAL PARA BLOQUEO DE AUDIO (NotAllowedError)
+            if (error.name === 'NotAllowedError') {
+                console.log('🔇 Audio bloqueado por navegador. Intentando reproducir SILENCIADO como fallback...');
+                elements.videoPlayer.muted = true;
+                elements.videoPlayer.play().then(() => {
+                    console.log('✅ Video reproducido en MUTE (Fallback activado)');
+                    // Mostrar botón de activar audio
+                    if (document.getElementById('audio-unmute-btn')) {
+                        document.getElementById('audio-unmute-btn').classList.remove('hidden');
+                        document.getElementById('audio-unmute-btn').style.display = 'block';
+                    }
+                }).catch(errMute => {
+                    console.error('❌ Falló reproducción incluso en mute:', errMute);
+                    showError('Error fatal de reproducción: ' + errMute.message);
+                });
+                return; // Detener aquí, ya manejamos el error
+            }
+
+            // Intentar de nuevo después de un delay (para otros errores)
             setTimeout(() => {
                 console.log('🔄 Reintentando reproducción...');
                 elements.videoPlayer.play().catch(err => {

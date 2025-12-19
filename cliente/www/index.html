@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
@@ -8,6 +9,7 @@
     <title>ProntoTV - Cliente</title>
     <link rel="stylesheet" href="styles.css?v=13">
 </head>
+
 <body>
     <div id="app">
         <!-- Estado de conexión -->
@@ -18,7 +20,8 @@
         <!-- Pantalla principal con logo -->
         <div id="splash-screen" class="splash-screen">
             <div class="splash-content">
-                <img src="logo.png" alt="ProntoTV" class="logo" id="logo-img" onerror="this.style.display='none'" style="max-width: 200px !important; width: 200px !important; filter: brightness(0) invert(1) !important;">
+                <img src="logo.png" alt="ProntoTV" class="logo" id="logo-img" onerror="this.style.display='none'"
+                    style="max-width: 200px !important; width: 200px !important; filter: brightness(0) invert(1) !important;">
                 <div class="splash-text">
                     <p id="splash-message">Cargando contenido...</p>
                 </div>
@@ -27,15 +30,8 @@
 
         <!-- Reproductor de video -->
         <div id="video-container" class="media-container hidden">
-            <video 
-                id="video-player" 
-                autoplay 
-                muted 
-                playsinline
-                preload="auto"
-                webkit-playsinline="true"
-                x-webkit-airplay="allow"
-            >
+            <video id="video-player" playsinline preload="auto" webkit-playsinline="true" x-webkit-airplay="allow"
+                style="background-color: black;">
                 Tu navegador no soporta video HTML5.
             </video>
             <!-- Botón para activar audio si está bloqueado -->
@@ -58,11 +54,17 @@
         </div>
 
         <!-- Pantalla de espera -->
-        <div id="waiting-screen" class="waiting-screen hidden" style="display: none; background: #000000; width: 100vw; height: 100vh; position: fixed; top: 0; left: 0; z-index: 99999;">
-            <canvas id="matrix-canvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1;"></canvas>
-            <div class="waiting-content" style="display: flex; flex-direction: column; justify-content: center; align-items: center; width: 100%; height: 100%; position: relative; z-index: 2; margin: 0; left: 0; right: 0;">
-                <img src="logo.png" alt="Pronto Envios" class="pronto-logo-waiting" style="max-width: 400px !important; width: 400px !important; height: auto !important; margin: 0 auto 40px auto !important; filter: brightness(0) invert(1) !important; display: block !important;">
-                <h1 class="freedom-labs-text" style="font-size: 48px; font-weight: 300; color: #00ff41; letter-spacing: 6px; text-transform: none; margin: 60px auto 0 auto; padding: 0; text-align: center; font-family: 'Courier New', 'Courier', monospace; text-shadow: 0 0 10px #00ff41, 0 0 20px #00ff41, 0 0 30px #00ff41; display: block; width: auto;">Freedom Labs</h1>
+        <div id="waiting-screen" class="waiting-screen hidden"
+            style="display: none; background: #000000; width: 100vw; height: 100vh; position: fixed; top: 0; left: 0; z-index: 99999;">
+            <canvas id="matrix-canvas"
+                style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1;"></canvas>
+            <div class="waiting-content"
+                style="display: flex; flex-direction: column; justify-content: center; align-items: center; width: 100%; height: 100%; position: relative; z-index: 2; margin: 0; left: 0; right: 0;">
+                <img src="logo.png" alt="Pronto Envios" class="pronto-logo-waiting"
+                    style="max-width: 400px !important; width: 400px !important; height: auto !important; margin: 0 auto 40px auto !important; filter: brightness(0) invert(1) !important; display: block !important;">
+                <h1 class="freedom-labs-text"
+                    style="font-size: 48px; font-weight: 300; color: #00ff41; letter-spacing: 6px; text-transform: none; margin: 60px auto 0 auto; padding: 0; text-align: center; font-family: 'Courier New', 'Courier', monospace; text-shadow: 0 0 10px #00ff41, 0 0 20px #00ff41, 0 0 30px #00ff41; display: block; width: auto;">
+                    Freedom Labs</h1>
             </div>
         </div>
 
@@ -82,4 +84,5 @@
     <script src="updater.js"></script>
     <script src="app.js"></script>
 </body>
+
 </html>
