@@ -1,0 +1,443 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    background: #000;
+    color: #fff;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    margin: 0;
+    padding: 0;
+    position: fixed;
+    top: 0;
+    left: 0;
+}
+
+#app {
+    width: 100%;
+    height: 100%;
+    position: relative;
+}
+
+/* Estado de conexión */
+.status {
+    position: fixed !important;
+    top: 10px !important;
+    right: 10px !important;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    z-index: 100000 !important;
+    backdrop-filter: blur(10px);
+    background: rgba(0, 0, 0, 0.6);
+    display: block !important;
+    visibility: visible !important;
+}
+
+.status.online {
+    color: #4ade80;
+}
+
+.status.online::before {
+    content: "● ";
+    color: #4ade80;
+}
+
+.status.offline {
+    color: #f87171;
+}
+
+.status.offline::before {
+    content: "○ ";
+    color: #f87171;
+}
+
+/* Pantalla principal con logo */
+.splash-screen {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #F58342 !important; /* Color naranja */
+    background-color: #F58342 !important;
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 100;
+    animation: fadeIn 0.5s ease-in;
+}
+
+.splash-screen.hidden {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    z-index: 1 !important;
+    pointer-events: none !important;
+}
+
+.splash-content {
+    text-align: center;
+    padding: 40px;
+}
+
+.logo,
+#logo-img {
+    max-width: 200px !important;
+    width: 200px !important;
+    height: auto !important;
+    margin-bottom: 30px;
+    animation: pulse 2s ease-in-out infinite;
+    filter: brightness(0) invert(1) !important;
+    -webkit-filter: brightness(0) invert(1) !important;
+    image-rendering: auto;
+    -ms-interpolation-mode: bicubic;
+}
+
+.logo-small {
+    max-width: 150px;
+    width: 60%;
+    height: auto;
+    margin-bottom: 20px;
+    filter: brightness(0) invert(1); /* Filtro blanco para logo pequeño también */
+}
+
+/* .splash-text h1 eliminado - ya no se muestra "ProntoTV" */
+
+.splash-text p {
+    font-size: 18px;
+    opacity: 0.9;
+    color: #fff;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes pulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+    }
+}
+
+/* Contenedores de media */
+.media-container {
+    width: 100vw !important;
+    height: 100vh !important;
+    min-width: 100vw !important;
+    min-height: 100vh !important;
+    display: flex !important;
+    justify-content: center;
+    align-items: center;
+    background: #000;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    z-index: 50 !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+.media-container.hidden {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    z-index: 1 !important;
+    pointer-events: none !important;
+}
+
+/* Reproductor de video */
+#video-player {
+    width: 100vw !important;
+    height: 100vh !important;
+    min-width: 100vw !important;
+    min-height: 100vh !important;
+    max-width: 100vw !important;
+    max-height: 100vh !important;
+    object-fit: contain;
+    background: #000;
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    z-index: 51 !important;
+    position: relative;
+    margin: 0;
+    padding: 0;
+}
+
+/* Carrusel de imágenes */
+.carousel {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+}
+
+#carousel-image {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #000;
+    animation: fadeInImage 1s ease-in;
+}
+
+@keyframes fadeInImage {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.carousel-indicators {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+    z-index: 10;
+}
+
+.carousel-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.carousel-indicator.active {
+    background: #fff;
+    transform: scale(1.2);
+}
+
+/* Imágenes aleatorias */
+#random-image {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #000;
+    animation: fadeInImage 1s ease-in;
+}
+
+/* Pantalla de espera */
+.waiting-screen {
+    width: 100vw !important;
+    height: 100vh !important;
+    display: flex !important;
+    justify-content: center;
+    align-items: center;
+    background: #000000 !important; /* Fondo negro */
+    flex-direction: column;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    z-index: 99999 !important;
+}
+
+.waiting-screen.hidden {
+    display: none !important;
+}
+
+.waiting-content {
+    text-align: center;
+    padding: 40px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    position: relative;
+    left: 0;
+    right: 0;
+}
+
+.pronto-logo-waiting {
+    max-width: 400px !important;
+    width: 400px !important;
+    height: auto !important;
+    margin: 0 auto 40px auto !important;
+    filter: brightness(0) invert(1) !important;
+    display: block !important;
+}
+
+.freedom-labs-text {
+    font-size: 48px !important;
+    font-weight: 300;
+    color: #00ff41 !important;
+    letter-spacing: 6px;
+    text-transform: none;
+    margin: 60px auto 0 auto !important;
+    padding: 0;
+    text-align: center !important;
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    font-family: 'Courier New', 'Courier', monospace !important;
+    text-shadow: 0 0 10px #00ff41, 0 0 20px #00ff41, 0 0 30px #00ff41;
+    animation: pulse 2s ease-in-out infinite;
+    width: auto !important;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+        text-shadow: 0 0 10px #00ff41, 0 0 20px #00ff41, 0 0 30px #00ff41;
+    }
+    50% {
+        opacity: 0.7;
+        text-shadow: 0 0 5px #00ff41, 0 0 10px #00ff41, 0 0 15px #00ff41;
+    }
+}
+
+.spinner {
+    width: 60px;
+    height: 60px;
+    border: 4px solid rgba(255, 255, 255, 0.3);
+    border-top: 4px solid #fff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 30px auto;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.waiting-content h2 {
+    font-size: 24px;
+    margin-bottom: 10px;
+    font-weight: 500;
+    color: #fff;
+}
+
+.waiting-content p {
+    font-size: 16px;
+    opacity: 0.8;
+    color: #fff;
+}
+
+/* Pantalla de error */
+.error-screen {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #1a1a1a;
+    flex-direction: column;
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+.error-screen.hidden {
+    display: none;
+}
+
+.error-content {
+    text-align: center;
+    padding: 40px;
+    max-width: 500px;
+}
+
+.error-content h2 {
+    font-size: 28px;
+    margin-bottom: 20px;
+    color: #f87171;
+}
+
+.error-content p {
+    font-size: 16px;
+    margin-bottom: 30px;
+    opacity: 0.8;
+    color: #fff;
+}
+
+.retry-btn {
+    background: #667eea;
+    color: #fff;
+    border: none;
+    padding: 12px 32px;
+    font-size: 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.3s;
+}
+
+.retry-btn:hover {
+    background: #5568d3;
+}
+
+.retry-btn:active {
+    transform: scale(0.98);
+}
+
+/* Ocultar controles del video */
+video::-webkit-media-controls {
+    display: none !important;
+}
+
+video::-webkit-media-controls-enclosure {
+    display: none !important;
+}
+
+/* Transiciones suaves */
+.media-container {
+    transition: opacity 0.5s ease-in-out;
+}
+
+/* Botón para activar audio */
+.audio-unmute-btn {
+    position: absolute;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(102, 126, 234, 0.9);
+    color: #fff;
+    border: none;
+    padding: 15px 30px;
+    border-radius: 8px;
+    font-size: 18px;
+    font-weight: 600;
+    cursor: pointer;
+    z-index: 100;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.audio-unmute-btn:hover {
+    background: rgba(102, 126, 234, 1);
+    transform: translateX(-50%) scale(1.05);
+}
+
+.audio-unmute-btn.hidden {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+}

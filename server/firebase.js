@@ -79,7 +79,8 @@ const COLLECTIONS = {
   TVS: 'tvs',
   VIDEOS: 'videos',
   SCHEDULES: 'schedules',
-  CURRENT_PLAYBACK: 'current_playback'
+  CURRENT_PLAYBACK: 'current_playback',
+  PLAYLISTS: 'playlists'
 };
 
 // Helper para convertir timestamps

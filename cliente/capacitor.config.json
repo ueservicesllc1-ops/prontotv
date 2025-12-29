@@ -1,8 +1,7 @@
 {
   "appId": "com.prontotv.client",
   "appName": "ProntoTV",
-  "webDir": ".",
-  "bundledWebRuntime": false,
+  "webDir": "www",
   "server": {
     "androidScheme": "https",
     "hostname": "localhost"
@@ -23,4 +22,3 @@
     }
   }
 }
-

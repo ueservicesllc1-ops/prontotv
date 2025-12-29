@@ -6,7 +6,6 @@ function Videos({ apiUrl }) {
   const [videos, setVideos] = useState([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
-  const [uploadMode, setUploadMode] = useState('url') // 'url' o 'upload'
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [selectedFile, setSelectedFile] = useState(null)
@@ -41,12 +40,14 @@ function Videos({ apiUrl }) {
     if (file) {
       setSelectedFile(file)
       if (!formData.name) {
-        setFormData({...formData, name: file.name.replace(/\.[^/.]+$/, '')})
+        setFormData({ ...formData, name: file.name.replace(/\.[^/.]+$/, '') })
       }
     }
   }
 
-  const handleUpload = async () => {
+  const handleUpload = async (e) => {
+    if (e) e.preventDefault() // Handle form submit event
+
     if (!selectedFile) {
       alert('Por favor selecciona un archivo')
       return
@@ -81,12 +82,9 @@ function Videos({ apiUrl }) {
       const contentType = formData.type || (isImage ? 'image' : 'video');
 
       // Crear el video en Firebase con la URL de B2 y Bunny CDN
-      // uploadRes.data.url puede ser Bunny CDN si está configurado
-      // uploadRes.data.b2Url es la URL original de B2
-      // uploadRes.data.cdnUrl es la URL de Bunny CDN explícita
       const bunnyUrl = uploadRes.data.cdnUrl || (uploadRes.data.url && uploadRes.data.url.includes('b-cdn.net') ? uploadRes.data.url : null);
       const b2Url = uploadRes.data.b2Url || uploadRes.data.url;
-      
+
       await axios.post(`${apiUrl}/videos`, {
         name: formData.name || uploadRes.data.name,
         url: bunnyUrl || b2Url, // URL final (Bunny si está disponible, B2 si no)
@@ -101,10 +99,10 @@ function Videos({ apiUrl }) {
       setFormData({ name: '', url: '', duration: '', folder: 'videos', type: '', display_mode: '', interval: '' })
       setSelectedFile(null)
       setUploadProgress(0)
-      
+
       // Mostrar URL de Bunny CDN si está configurado
       const isBunnyCDN = bunnyUrl && bunnyUrl.includes('b-cdn.net')
-      const message = isBunnyCDN 
+      const message = isBunnyCDN
         ? `✅ Contenido subido exitosamente!\n\nURL Bunny CDN:\n${bunnyUrl}\n\nURL B2 Original:\n${uploadRes.data.b2Url || uploadRes.data.url}`
         : `✅ Contenido subido exitosamente a B2\n\nURL: ${uploadRes.data.url}`
       alert(message)
@@ -116,46 +114,9 @@ function Videos({ apiUrl }) {
     }
   }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    
-    if (uploadMode === 'upload') {
-      await handleUpload()
-      return
-    }
-    
-    try {
-      // Procesar URLs si hay múltiples (para carrusel/aleatorio)
-      let images = null;
-      let url = formData.url;
-      
-      if (formData.display_mode && formData.url.includes(',')) {
-        // Múltiples URLs separadas por comas
-        images = formData.url.split(',').map(u => u.trim()).filter(u => u);
-        url = images[0]; // URL principal
-      }
-
-      await axios.post(`${apiUrl}/videos`, {
-        name: formData.name,
-        url: url,
-        duration: formData.duration ? parseInt(formData.duration) : null,
-        type: formData.type || null,
-        display_mode: formData.display_mode || null,
-        interval: formData.interval ? parseInt(formData.interval) : null,
-        images: images
-      })
-      fetchVideos()
-      setShowModal(false)
-      setFormData({ name: '', url: '', duration: '', folder: 'videos', type: '', display_mode: '', interval: '' })
-    } catch (error) {
-      console.error('Error creating video:', error)
-      alert('Error al crear el video')
-    }
-  }
-
   const handleDelete = async (id) => {
     if (!confirm('¿Estás seguro de eliminar este video?')) return
-    
+
     try {
       await axios.delete(`${apiUrl}/videos/${id}`)
       fetchVideos()
@@ -184,14 +145,14 @@ function Videos({ apiUrl }) {
       console.log(`🔍 Detectando duración para video: ${video.name} (${video.id})`)
       console.log(`📹 URL: ${video.url}`)
       console.log(`🌐 API URL: ${apiUrl}`)
-      
+
       // Crear un video element temporal para detectar la duración
       const videoElement = document.createElement('video')
       videoElement.preload = 'metadata'
       videoElement.crossOrigin = 'anonymous' // Permitir CORS
       videoElement.muted = true // Necesario para autoplay en algunos navegadores
       videoElement.playsInline = true
-      
+
       let resolved = false
       const timeout = setTimeout(() => {
         if (!resolved) {
@@ -200,15 +161,15 @@ function Videos({ apiUrl }) {
           alert('⏱️ Tiempo de espera agotado. El video puede estar tardando en cargar o tener problemas de CORS.')
         }
       }, 30000) // 30 segundos de timeout
-      
+
       videoElement.onloadedmetadata = async () => {
         if (resolved) return
         resolved = true
         clearTimeout(timeout)
-        
+
         const duration = Math.floor(videoElement.duration)
         console.log(`⏱️ Duración detectada: ${duration} segundos (${Math.floor(duration / 60)}:${String(duration % 60).padStart(2, '0')})`)
-        
+
         if (duration && duration > 0 && !isNaN(duration) && isFinite(duration)) {
           try {
             console.log(`📤 Enviando PATCH a: ${apiUrl}/videos/${video.id}`)
@@ -223,7 +184,7 @@ function Videos({ apiUrl }) {
             console.error('❌ Error status:', error.response?.status)
             console.error('❌ Error data:', error.response?.data)
             console.error('❌ Full error:', error)
-            
+
             if (error.response?.status === 404) {
               alert(`❌ Video no encontrado en el servidor. ID: ${video.id}\n\nVerifica que:\n1. El servidor esté corriendo\n2. El video exista en Firestore\n3. La URL del API sea correcta: ${apiUrl}`)
             } else {
@@ -235,7 +196,7 @@ function Videos({ apiUrl }) {
         }
         videoElement.remove()
       }
-      
+
       videoElement.oncanplay = () => {
         if (resolved) return
         // Si onloadedmetadata no se disparó, intentar con canplay
@@ -243,7 +204,7 @@ function Videos({ apiUrl }) {
           videoElement.onloadedmetadata() // Llamar manualmente
         }
       }
-      
+
       videoElement.onerror = (e) => {
         if (resolved) return
         resolved = true
@@ -254,10 +215,10 @@ function Videos({ apiUrl }) {
         alert(`Error al cargar el video para detectar duración. Verifica la consola para más detalles.`)
         videoElement.remove()
       }
-      
+
       // Establecer src después de configurar los listeners
       videoElement.src = video.url
-      
+
       // Forzar carga de metadatos
       videoElement.load()
     } catch (error) {
@@ -268,7 +229,7 @@ function Videos({ apiUrl }) {
 
   const handleDetectAllDurations = async () => {
     const videosWithoutDuration = videos.filter(v => !v.duration || v.duration === 0)
-    
+
     if (videosWithoutDuration.length === 0) {
       alert('Todos los videos ya tienen duración')
       return
@@ -295,7 +256,7 @@ function Videos({ apiUrl }) {
           videoElement.crossOrigin = 'anonymous'
           videoElement.muted = true
           videoElement.playsInline = true
-          
+
           const timeout = setTimeout(() => {
             if (!resolved) {
               resolved = true
@@ -304,12 +265,12 @@ function Videos({ apiUrl }) {
               resolve()
             }
           }, 30000) // 30 segundos por video
-          
+
           videoElement.onloadedmetadata = async () => {
             if (resolved) return
             resolved = true
             clearTimeout(timeout)
-            
+
             const duration = Math.floor(videoElement.duration)
             if (duration && duration > 0 && !isNaN(duration) && isFinite(duration)) {
               try {
@@ -326,14 +287,14 @@ function Videos({ apiUrl }) {
             videoElement.remove()
             resolve()
           }
-          
+
           videoElement.oncanplay = () => {
             if (resolved) return
             if (videoElement.duration && videoElement.duration > 0 && !isNaN(videoElement.duration) && isFinite(videoElement.duration)) {
               videoElement.onloadedmetadata()
             }
           }
-          
+
           videoElement.onerror = () => {
             if (resolved) return
             resolved = true
@@ -343,11 +304,11 @@ function Videos({ apiUrl }) {
             videoElement.remove()
             resolve()
           }
-          
+
           videoElement.src = video.url
           videoElement.load()
         })
-        
+
         // Pequeña pausa entre videos para no sobrecargar
         await new Promise(resolve => setTimeout(resolve, 500))
       } catch (error) {
@@ -371,8 +332,8 @@ function Videos({ apiUrl }) {
           <h2>Gestión de Videos</h2>
           <div style={{ display: 'flex', gap: '10px' }}>
             {videos.some(v => !v.duration || v.duration === 0) && (
-              <button 
-                className="btn" 
+              <button
+                className="btn"
                 onClick={handleDetectAllDurations}
                 style={{ background: '#10b981', color: 'white' }}
                 title="Detectar duración de videos sin duración"
@@ -401,14 +362,14 @@ function Videos({ apiUrl }) {
               {videos.map(video => {
                 const isBunnyCDN = video.url && video.url.includes('b-cdn.net')
                 const isB2 = video.url && video.url.includes('backblazeb2.com')
-                
+
                 const copyToClipboard = (url) => {
                   navigator.clipboard.writeText(url).then(() => {
                     setCopiedUrl(video.id)
                     setTimeout(() => setCopiedUrl(null), 2000)
                   })
                 }
-                
+
                 return (
                   <tr key={video.id}>
                     <td><strong>{video.name}</strong></td>
@@ -425,11 +386,11 @@ function Videos({ apiUrl }) {
                           }}>
                             {isBunnyCDN ? '🐰 Bunny CDN' : (isB2 ? '☁️ B2' : '🔗 URL')}
                           </span>
-                          <a 
-                            href={video.url} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            style={{ 
+                          <a
+                            href={video.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
                               color: '#F58342',
                               textDecoration: 'none',
                               fontSize: '12px',
@@ -515,7 +476,7 @@ function Videos({ apiUrl }) {
                       )}
                     </td>
                     <td>
-                      <button 
+                      <button
                         className="btn btn-danger"
                         onClick={() => handleDelete(video.id)}
                       >
@@ -537,99 +498,56 @@ function Videos({ apiUrl }) {
               <h3>Agregar Video</h3>
               <button className="close-btn" onClick={() => setShowModal(false)}>×</button>
             </div>
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={handleUpload}>
               <div className="form-group">
-                <label>Modo</label>
-                <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
-                  <label>
-                    <input
-                      type="radio"
-                      value="upload"
-                      checked={uploadMode === 'upload'}
-                      onChange={(e) => setUploadMode(e.target.value)}
-                    />
-                    {' '}Subir a B2
-                  </label>
-                  <label>
-                    <input
-                      type="radio"
-                      value="url"
-                      checked={uploadMode === 'url'}
-                      onChange={(e) => setUploadMode(e.target.value)}
-                    />
-                    {' '}Usar URL
-                  </label>
-                </div>
-              </div>
-
-              {uploadMode === 'upload' ? (
-                <>
-                  <div className="form-group">
-                    <label>Seleccionar Archivo de Video</label>
-                    <input
-                      type="file"
-                      accept="video/*"
-                      onChange={handleFileSelect}
-                      disabled={uploading}
-                      required={uploadMode === 'upload'}
-                    />
-                    {selectedFile && (
-                      <small style={{ color: '#666', marginTop: '5px', display: 'block' }}>
-                        Archivo seleccionado: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
-                      </small>
-                    )}
-                  </div>
-                  <div className="form-group">
-                    <label>Carpeta en B2 (opcional)</label>
-                    <input
-                      type="text"
-                      value={formData.folder}
-                      onChange={(e) => setFormData({...formData, folder: e.target.value})}
-                      placeholder="videos"
-                    />
-                  </div>
-                  {uploading && (
-                    <div className="form-group">
-                      <div style={{ 
-                        width: '100%', 
-                        backgroundColor: '#f0f0f0', 
-                        borderRadius: '4px', 
-                        overflow: 'hidden',
-                        marginTop: '10px'
-                      }}>
-                        <div style={{
-                          width: `${uploadProgress}%`,
-                          backgroundColor: '#F58342',
-                          height: '20px',
-                          transition: 'width 0.3s',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: 'white',
-                          fontSize: '12px',
-                          fontWeight: 'bold'
-                        }}>
-                          {uploadProgress}%
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="form-group">
-                <label>URL del Video/Imagen</label>
-                <textarea
-                  value={formData.url}
-                  onChange={(e) => setFormData({...formData, url: e.target.value})}
-                  required={uploadMode === 'url'}
-                  placeholder="https://s3.us-east-005.backblazeb2.com/mixercur/video.mp4&#10;Para carrusel/aleatorio: URL1, URL2, URL3"
-                  rows="3"
-                  style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '8px', fontFamily: 'inherit' }}
+                <label>Seleccionar Archivo (Video o Imagen)</label>
+                <input
+                  type="file"
+                  accept="video/*,image/*"
+                  onChange={handleFileSelect}
+                  disabled={uploading}
+                  required
                 />
-                <small style={{ color: '#666', marginTop: '5px', display: 'block' }}>
-                  Soporta URLs de B2, Bunny, o cualquier servidor. Para carrusel/aleatorio, separa múltiples URLs con comas.
-                </small>
+                {selectedFile && (
+                  <small style={{ color: '#666', marginTop: '5px', display: 'block' }}>
+                    Archivo seleccionado: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+                  </small>
+                )}
               </div>
+              <div className="form-group">
+                <label>Carpeta en B2 (opcional)</label>
+                <input
+                  type="text"
+                  value={formData.folder}
+                  onChange={(e) => setFormData({ ...formData, folder: e.target.value })}
+                  placeholder="videos"
+                />
+              </div>
+              {uploading && (
+                <div className="form-group">
+                  <div style={{
+                    width: '100%',
+                    backgroundColor: '#f0f0f0',
+                    borderRadius: '4px',
+                    overflow: 'hidden',
+                    marginTop: '10px'
+                  }}>
+                    <div style={{
+                      width: `${uploadProgress}%`,
+                      backgroundColor: '#F58342',
+                      height: '20px',
+                      transition: 'width 0.3s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'white',
+                      fontSize: '12px',
+                      fontWeight: 'bold'
+                    }}>
+                      {uploadProgress}%
+                    </div>
+                  </div>
+                </div>
               )}
 
               <div className="form-group">
@@ -637,7 +555,7 @@ function Videos({ apiUrl }) {
                 <input
                   type="text"
                   value={formData.name}
-                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   required
                   placeholder="Ej: Video Promocional"
                 />
@@ -646,7 +564,7 @@ function Videos({ apiUrl }) {
                 <label>Tipo de Contenido</label>
                 <select
                   value={formData.type || 'auto'}
-                  onChange={(e) => setFormData({...formData, type: e.target.value === 'auto' ? '' : e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, type: e.target.value === 'auto' ? '' : e.target.value })}
                 >
                   <option value="auto">Auto-detectar</option>
                   <option value="video">Video</option>
@@ -657,7 +575,7 @@ function Videos({ apiUrl }) {
                 <label>Modo de Visualización (solo para imágenes)</label>
                 <select
                   value={formData.display_mode || ''}
-                  onChange={(e) => setFormData({...formData, display_mode: e.target.value || null})}
+                  onChange={(e) => setFormData({ ...formData, display_mode: e.target.value || null })}
                 >
                   <option value="">Imagen única</option>
                   <option value="carousel">Carrusel</option>
@@ -672,7 +590,7 @@ function Videos({ apiUrl }) {
                 <input
                   type="number"
                   value={formData.interval || ''}
-                  onChange={(e) => setFormData({...formData, interval: e.target.value ? parseInt(e.target.value) : null})}
+                  onChange={(e) => setFormData({ ...formData, interval: e.target.value ? parseInt(e.target.value) : null })}
                   placeholder="5000"
                 />
                 <small style={{ color: '#666', marginTop: '5px', display: 'block' }}>
@@ -684,14 +602,14 @@ function Videos({ apiUrl }) {
                 <input
                   type="number"
                   value={formData.duration}
-                  onChange={(e) => setFormData({...formData, duration: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
                   placeholder="120"
                 />
               </div>
               <div className="modal-footer">
-                <button 
-                  type="button" 
-                  className="btn btn-secondary" 
+                <button
+                  type="button"
+                  className="btn btn-secondary"
                   onClick={() => {
                     setShowModal(false)
                     setSelectedFile(null)
@@ -702,12 +620,12 @@ function Videos({ apiUrl }) {
                 >
                   Cancelar
                 </button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   className="btn btn-primary"
                   disabled={uploading}
                 >
-                  {uploading ? 'Subiendo...' : uploadMode === 'upload' ? 'Subir y Agregar' : 'Agregar'}
+                  {uploading ? 'Subiendo...' : 'Subir y Agregar'}
                 </button>
               </div>
             </form>

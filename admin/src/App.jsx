@@ -13,12 +13,12 @@ function getApiUrl() {
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL
   }
-  
+
   // Si estamos en localhost, usar localhost:3000
   if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
     return 'http://localhost:3000/api'
   }
-  
+
   // Si estamos en producción, usar la misma URL base pero con /api
   const protocol = window.location.protocol
   const hostname = window.location.hostname
@@ -26,7 +26,7 @@ function getApiUrl() {
   return `${protocol}//${hostname}${port}/api`
 }
 
-const API_URL = (function() {
+const API_URL = (function () {
   const url = getApiUrl()
   console.log('🌐 Admin - URL del servidor detectada:', url)
   return url
@@ -40,11 +40,11 @@ function App() {
       <header className="app-header" style={{ background: '#F58342', backgroundColor: '#F58342' }}>
         <div className="header-content">
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <img 
-              src="/logo.png" 
-              alt="ProntoTV" 
-              style={{ 
-                height: '60px', 
+            <img
+              src="/logo.png"
+              alt="ProntoTV"
+              style={{
+                height: '60px',
                 width: 'auto',
                 filter: 'brightness(0) invert(1)',
                 objectFit: 'contain'
@@ -57,31 +57,32 @@ function App() {
             <h1 style={{ margin: 0 }}>ProntoTV Admin</h1>
           </div>
           <nav className="nav-tabs">
-            <button 
+            <button
               className={activeTab === 'dashboard' ? 'active' : ''}
               onClick={() => setActiveTab('dashboard')}
             >
               Dashboard
             </button>
-            <button 
+            <button
               className={activeTab === 'tvs' ? 'active' : ''}
               onClick={() => setActiveTab('tvs')}
             >
               TVs
             </button>
-            <button 
+            <button
               className={activeTab === 'videos' ? 'active' : ''}
               onClick={() => setActiveTab('videos')}
             >
               Videos
             </button>
-            <button 
+            <button
               className={activeTab === 'schedules' ? 'active' : ''}
               onClick={() => setActiveTab('schedules')}
             >
               Programación
             </button>
-            <button 
+            {/* Playlists button removed as it's integrated in Schedules */}
+            <button
               className={activeTab === 'liveview' ? 'active' : ''}
               onClick={() => setActiveTab('liveview')}
             >

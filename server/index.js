@@ -8,7 +8,37 @@ require('dotenv').config({ path: path.join(__dirname, '../.env') });
 const { db, COLLECTIONS, toDate, toTimestamp } = require('./firebase');
 const { uploadFile, deleteFile, listFiles, getPublicUrl, convertToBunnyCDN } = require('./b2');
 
+
 const app = express();
+
+// ========== CACHÉ SIMPLE EN MEMORIA ==========
+// Para reducir lecturas a Firestore y evitar exceder la cuota
+const cache = {
+  data: {},
+  set: function (key, value, ttlSeconds = 180) { // Aumentado a 3 minutos (180s) para reducir lecturas de Firestore
+    this.data[key] = {
+      value: value,
+      expires: Date.now() + (ttlSeconds * 1000)
+    };
+  },
+  get: function (key) {
+    const item = this.data[key];
+    if (!item) return null;
+    if (Date.now() > item.expires) {
+      delete this.data[key];
+      return null;
+    }
+    return item.value;
+  },
+  clear: function (key) {
+    if (key) {
+      delete this.data[key];
+    } else {
+      this.data = {};
+    }
+  }
+};
+
 
 // Middleware
 // Configurar CORS con dominios permitidos
@@ -90,18 +120,24 @@ const upload = multer({
     fileSize: 500 * 1024 * 1024 // 500MB máximo
   },
   fileFilter: (req, file, cb) => {
-    // Aceptar solo videos
+    // Aceptar videos e imágenes
     const allowedMimes = [
       'video/mp4',
       'video/webm',
       'video/ogg',
       'video/quicktime',
-      'video/x-msvideo'
+      'video/x-msvideo',
+      'image/jpeg',
+      'image/jpg',
+      'image/png',
+      'image/gif',
+      'image/webp',
+      'image/svg+xml'
     ];
     if (allowedMimes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Solo se permiten archivos de video (MP4, WebM, etc.)'), false);
+      cb(new Error('Solo se permiten archivos de video (MP4, WebM, etc.) o imagen (JPG, PNG, GIF, WEBP, SVG)'), false);
     }
   }
 });
@@ -601,11 +637,22 @@ app.post('/api/schedules', async (req, res) => {
         is_active: is_active !== undefined ? (is_active ? 1 : 0) : 1,
         sequence_order: sequence_order !== undefined ? sequence_order : null,
         is_loop: is_loop !== undefined ? (is_loop ? 1 : 0) : 0,
+        custom_duration: req.body.custom_duration || null,
         created_at: toTimestamp(new Date())
       };
 
       const docRef = await db.collection(COLLECTIONS.SCHEDULES).add(scheduleData);
       results.push({ id: docRef.id, ...scheduleData });
+    }
+
+    // 🗑️ Limpiar caché del TV afectado para forzar actualización
+    const tvDoc = await db.collection(COLLECTIONS.TVS).doc(tv_id).get();
+    if (tvDoc.exists) {
+      const tvData = tvDoc.data();
+      if (tvData.device_id) {
+        cache.clear(`playback_${tvData.device_id}`);
+        console.log(`[Cache] Limpiado caché para TV ${tvData.device_id} después de crear programación`);
+      }
     }
 
     // Si solo hay una programación, devolver el objeto directamente
@@ -707,10 +754,220 @@ app.get('/api/schedules', async (req, res) => {
 // Eliminar programación
 app.delete('/api/schedules/:id', async (req, res) => {
   try {
+    // Obtener la programación antes de eliminarla para limpiar el caché del TV
+    const scheduleDoc = await db.collection(COLLECTIONS.SCHEDULES).doc(req.params.id).get();
+
+    if (scheduleDoc.exists) {
+      const scheduleData = scheduleDoc.data();
+      const tvDoc = await db.collection(COLLECTIONS.TVS).doc(scheduleData.tv_id).get();
+
+      if (tvDoc.exists) {
+        const tvData = tvDoc.data();
+        if (tvData.device_id) {
+          cache.clear(`playback_${tvData.device_id}`);
+          console.log(`[Cache] Limpiado caché para TV ${tvData.device_id} después de eliminar programación`);
+        }
+      }
+    }
+
     await db.collection(COLLECTIONS.SCHEDULES).doc(req.params.id).delete();
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting schedule:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ========== PLAYLIST ENDPOINTS ==========
+
+// Crear playlist
+app.post('/api/playlists', async (req, res) => {
+  try {
+    const { name, items, tv_id } = req.body;
+
+    if (!name || !items || !Array.isArray(items)) {
+      return res.status(400).json({ error: 'Name and items array are required' });
+    }
+
+    const playlistData = {
+      name,
+      items, // Array de { video_id, duration (en segundos), order }
+      tv_id: tv_id || null,
+      created_at: toTimestamp(new Date()),
+      updated_at: toTimestamp(new Date())
+    };
+
+    const docRef = await db.collection(COLLECTIONS.PLAYLISTS).add(playlistData);
+
+    // Limpiar caché si está asociado a un TV
+    if (tv_id) {
+      const tvDoc = await db.collection(COLLECTIONS.TVS).doc(tv_id).get();
+      if (tvDoc.exists) {
+        const tvData = tvDoc.data();
+        if (tvData.device_id) {
+          cache.clear(`playback_${tvData.device_id}`);
+          console.log(`[Cache] Limpiado caché para TV ${tvData.device_id} después de crear playlist`);
+        }
+      }
+    }
+
+    res.json({ id: docRef.id, ...playlistData });
+  } catch (error) {
+    console.error('Error creating playlist:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Obtener todas las playlists
+app.get('/api/playlists', async (req, res) => {
+  try {
+    const snapshot = await db.collection(COLLECTIONS.PLAYLISTS)
+      .orderBy('created_at', 'desc')
+      .get();
+
+    const playlists = await Promise.all(snapshot.docs.map(async (doc) => {
+      const playlistData = doc.data();
+
+      // Obtener información de los videos
+      const itemsWithVideoData = await Promise.all(
+        (playlistData.items || []).map(async (item) => {
+          const videoDoc = await db.collection(COLLECTIONS.VIDEOS).doc(item.video_id).get();
+          const videoData = videoDoc.exists ? videoDoc.data() : null;
+
+          return {
+            ...item,
+            video_name: videoData?.name,
+            video_url: videoData?.url,
+            video_type: videoData?.type
+          };
+        })
+      );
+
+      return {
+        id: doc.id,
+        ...playlistData,
+        items: itemsWithVideoData,
+        created_at: toDate(playlistData.created_at)?.toISOString(),
+        updated_at: toDate(playlistData.updated_at)?.toISOString()
+      };
+    }));
+
+    res.json(playlists);
+  } catch (error) {
+    console.error('Error fetching playlists:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Obtener playlist por ID
+app.get('/api/playlists/:id', async (req, res) => {
+  try {
+    const doc = await db.collection(COLLECTIONS.PLAYLISTS).doc(req.params.id).get();
+
+    if (!doc.exists) {
+      return res.status(404).json({ error: 'Playlist not found' });
+    }
+
+    const playlistData = doc.data();
+
+    // Obtener información de los videos
+    const itemsWithVideoData = await Promise.all(
+      (playlistData.items || []).map(async (item) => {
+        const videoDoc = await db.collection(COLLECTIONS.VIDEOS).doc(item.video_id).get();
+        const videoData = videoDoc.exists ? videoDoc.data() : null;
+
+        return {
+          ...item,
+          video_name: videoData?.name,
+          video_url: videoData?.url,
+          video_type: videoData?.type
+        };
+      })
+    );
+
+    res.json({
+      id: doc.id,
+      ...playlistData,
+      items: itemsWithVideoData,
+      created_at: toDate(playlistData.created_at)?.toISOString(),
+      updated_at: toDate(playlistData.updated_at)?.toISOString()
+    });
+  } catch (error) {
+    console.error('Error fetching playlist:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Actualizar playlist
+app.patch('/api/playlists/:id', async (req, res) => {
+  try {
+    const { name, items, tv_id } = req.body;
+    const docRef = db.collection(COLLECTIONS.PLAYLISTS).doc(req.params.id);
+    const doc = await docRef.get();
+
+    if (!doc.exists) {
+      return res.status(404).json({ error: 'Playlist not found' });
+    }
+
+    const updateData = {
+      updated_at: toTimestamp(new Date())
+    };
+
+    if (name !== undefined) updateData.name = name;
+    if (items !== undefined) updateData.items = items;
+    if (tv_id !== undefined) updateData.tv_id = tv_id;
+
+    await docRef.update(updateData);
+
+    // Limpiar caché si está asociado a un TV
+    const updatedDoc = await docRef.get();
+    const playlistData = updatedDoc.data();
+    if (playlistData.tv_id) {
+      const tvDoc = await db.collection(COLLECTIONS.TVS).doc(playlistData.tv_id).get();
+      if (tvDoc.exists) {
+        const tvData = tvDoc.data();
+        if (tvData.device_id) {
+          cache.clear(`playback_${tvData.device_id}`);
+          console.log(`[Cache] Limpiado caché para TV ${tvData.device_id} después de actualizar playlist`);
+        }
+      }
+    }
+
+    res.json({
+      id: updatedDoc.id,
+      ...playlistData,
+      created_at: toDate(playlistData.created_at)?.toISOString(),
+      updated_at: toDate(playlistData.updated_at)?.toISOString()
+    });
+  } catch (error) {
+    console.error('Error updating playlist:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Eliminar playlist
+app.delete('/api/playlists/:id', async (req, res) => {
+  try {
+    const playlistDoc = await db.collection(COLLECTIONS.PLAYLISTS).doc(req.params.id).get();
+
+    if (playlistDoc.exists) {
+      const playlistData = playlistDoc.data();
+      if (playlistData.tv_id) {
+        const tvDoc = await db.collection(COLLECTIONS.TVS).doc(playlistData.tv_id).get();
+        if (tvDoc.exists) {
+          const tvData = tvDoc.data();
+          if (tvData.device_id) {
+            cache.clear(`playback_${tvData.device_id}`);
+            console.log(`[Cache] Limpiado caché para TV ${tvData.device_id} después de eliminar playlist`);
+          }
+        }
+      }
+    }
+
+    await db.collection(COLLECTIONS.PLAYLISTS).doc(req.params.id).delete();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting playlist:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -753,6 +1010,16 @@ app.get('/api/client/playback/:device_id', async (req, res) => {
 
   try {
     const { device_id } = req.params;
+
+    // 🚀 VERIFICAR CACHÉ PRIMERO - Reducir lecturas de Firestore
+    const cacheKey = `playback_${device_id}`;
+    const cachedResult = cache.get(cacheKey);
+    if (cachedResult) {
+      clearTimeout(timeout);
+      console.log(`[Playback Cache] ✅ Devolviendo desde caché para ${device_id}`);
+      return res.json(cachedResult);
+    }
+
     const now = new Date();
     const currentTime = now.toTimeString().slice(0, 5); // HH:MM
     const dayOfWeek = now.getDay(); // 0 = Domingo, 6 = Sábado
@@ -777,15 +1044,27 @@ app.get('/api/client/playback/:device_id', async (req, res) => {
 
     const tvDoc = tvSnapshot.docs[0];
     const tvId = tvDoc.id;
+    const tvData = tvDoc.data();
 
-    // Actualizar last_seen
-    await Promise.race([
-      tvDoc.ref.update({
-        status: 'online',
-        last_seen: toTimestamp(new Date())
-      }).catch(err => console.error('Error actualizando TV:', err)),
-      new Promise(resolve => setTimeout(resolve, 1000))
-    ]);
+    // ⚡ Actualizar last_seen solo si ha pasado más de 5 minutos desde la última actualización
+    // Esto reduce DRAMÁTICAMENTE las escrituras a Firestore
+    const lastSeen = toDate(tvData.last_seen);
+    const currentDate = new Date();
+    const minutesSinceLastUpdate = lastSeen ? (currentDate - lastSeen) / (1000 * 60) : Infinity;
+
+    // Solo actualizar si han pasado más de 5 minutos (o si nunca se ha actualizado)
+    if (minutesSinceLastUpdate > 5 || !lastSeen) {
+      await Promise.race([
+        tvDoc.ref.update({
+          status: 'online',
+          last_seen: toTimestamp(new Date())
+        }).catch(err => console.error('Error actualizando TV:', err)),
+        new Promise(resolve => setTimeout(resolve, 1000))
+      ]);
+      console.log(`[Playback] 📝 Actualizado last_seen para TV ${device_id} (${minutesSinceLastUpdate.toFixed(1)} min desde última actualización)`);
+    } else {
+      console.log(`[Playback] ⏭️ Skipped last_seen update para TV ${device_id} (solo ${minutesSinceLastUpdate.toFixed(1)} min desde última actualización)`);
+    }
 
     // Buscar programaciones activas para esta TV
     const schedulesSnapshot = await Promise.race([
@@ -925,7 +1204,10 @@ app.get('/api/client/playback/:device_id', async (req, res) => {
               return {
                 id: videoDoc.id,
                 ...videoDoc.data(),
-                schedule_id: schedule.id
+                id: videoDoc.id,
+                ...videoDoc.data(),
+                schedule_id: schedule.id,
+                custom_duration: schedule.custom_duration // Propagar duración personalizada
               };
             }
             return null;
@@ -953,13 +1235,12 @@ app.get('/api/client/playback/:device_id', async (req, res) => {
             return {
               url: videoUrl,
               name: v.name,
-              duration: v.duration,
+              duration: v.custom_duration || v.duration, // Usar duración personalizada si existe
               type: v.type || 'video'
             };
           });
 
-          clearTimeout(timeout);
-          res.json({
+          const responseData = {
             content: {
               type: 'sequence',
               videos: videosWithCDN,
@@ -969,7 +1250,13 @@ app.get('/api/client/playback/:device_id', async (req, res) => {
               start_time: firstSchedule.start_time,
               end_time: firstSchedule.end_time
             }
-          });
+          };
+
+          // 💾 Guardar en caché por 3 minutos (180s) para coincidir con el intervalo de sincronización del cliente
+          cache.set(cacheKey, responseData, 180);
+
+          clearTimeout(timeout);
+          res.json(responseData);
           return;
         }
       }
@@ -1017,8 +1304,13 @@ app.get('/api/client/playback/:device_id', async (req, res) => {
         };
 
         // Si es imagen, agregar duración si existe
-        if (contentType === 'image' && videoData.duration) {
-          content.duration = videoData.duration;
+        if (contentType === 'image') {
+          // Usar duración personalizada de la programación si existe, sino la del video
+          if (activeSchedule.custom_duration) {
+            content.duration = parseInt(activeSchedule.custom_duration);
+          } else if (videoData.duration) {
+            content.duration = videoData.duration;
+          }
         }
 
         // Si hay imágenes adicionales (para carrusel o random)
@@ -1061,21 +1353,31 @@ app.get('/api/client/playback/:device_id', async (req, res) => {
           is_immediate: activeSchedule.is_immediate
         });
 
-        clearTimeout(timeout);
-        res.json({
+        const responseData = {
           content: content,
           schedule: {
             start_time: activeSchedule.start_time,
             end_time: activeSchedule.end_time
           }
-        });
+        };
+
+        // 💾 Guardar en caché por 3 minutos (180s) para coincidir con el intervalo de sincronización del cliente
+        cache.set(cacheKey, responseData, 180);
+
+        clearTimeout(timeout);
+        res.json(responseData);
       } else {
         clearTimeout(timeout);
         res.json({ content: null });
       }
     } else {
+      const responseData = { content: null };
+
+      // 💾 Guardar en caché por 3 minutos (180s) - incluso cuando no hay contenido, para evitar consultas repetidas
+      cache.set(cacheKey, responseData, 180);
+
       clearTimeout(timeout);
-      res.json({ content: null });
+      res.json(responseData);
     }
   } catch (error) {
     clearTimeout(timeout);

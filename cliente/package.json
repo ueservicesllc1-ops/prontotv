@@ -1,0 +1,26 @@
+{
+    "name": "prontotv-client",
+    "version": "1.0.0",
+    "description": "Cliente ProntoTV para Android TV",
+    "main": "index.html",
+    "scripts": {
+        "build": "echo 'No build needed'",
+        "android": "npx cap open android",
+        "sync": "npx cap sync",
+        "copy": "npx cap copy"
+    },
+    "keywords": [
+        "android",
+        "tv",
+        "capacitor"
+    ],
+    "author": "",
+    "license": "MIT",
+    "dependencies": {
+        "@capacitor/android": "^6.0.0",
+        "@capacitor/core": "^6.0.0"
+    },
+    "devDependencies": {
+        "@capacitor/cli": "^6.0.0"
+    }
+}

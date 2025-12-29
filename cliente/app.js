@@ -69,27 +69,27 @@ function initWebSocket() {
     try {
         const wsUrl = CONFIG.SERVER_URL.replace('/api', '').replace('http://', 'ws://').replace('https://', 'wss://');
         console.log('🔌 Conectando a WebSocket:', wsUrl);
-        
+
         AppState.socket = io(wsUrl, {
             transports: ['websocket', 'polling'],
             reconnection: true,
             reconnectionDelay: 1000,
             reconnectionAttempts: 5
         });
-        
+
         AppState.socket.on('connect', () => {
             console.log('✅ WebSocket conectado');
-            
+
             // Registrar este TV
             AppState.socket.emit('tv-register', {
                 device_id: CONFIG.DEVICE_ID
             });
         });
-        
+
         AppState.socket.on('disconnect', () => {
             console.log('❌ WebSocket desconectado');
         });
-        
+
         AppState.socket.on('connect_error', (error) => {
             console.error('❌ Error de conexión WebSocket:', error);
         });
@@ -103,22 +103,22 @@ function sendPlaybackUpdate() {
     if (!AppState.socket || !AppState.socket.connected) {
         return;
     }
-    
+
     if (!elements.videoPlayer || (AppState.contentType !== 'video' && AppState.contentType !== 'sequence')) {
         return;
     }
-    
+
     const videoPlayer = elements.videoPlayer;
     const currentTime = videoPlayer.currentTime || 0;
     const duration = videoPlayer.duration || 0;
     const isPlaying = !videoPlayer.paused && !videoPlayer.ended;
-    
+
     let videoUrl = AppState.currentContent?.url;
     let videoName = AppState.currentContent?.name;
     let videoIndex = 0;
     let totalVideos = 1;
     let sequenceLoop = false;
-    
+
     // Si es una secuencia
     if (AppState.contentType === 'sequence' && AppState.sequenceVideos && AppState.sequenceVideos.length > 0) {
         videoIndex = AppState.sequenceIndex || 0;
@@ -130,7 +130,7 @@ function sendPlaybackUpdate() {
         }
         sequenceLoop = AppState.currentContent?.loop || false;
     }
-    
+
     AppState.socket.emit('playback-update', {
         device_id: CONFIG.DEVICE_ID,
         currentTime: Math.floor(currentTime),
@@ -149,11 +149,11 @@ function init() {
     console.log('🚀 Iniciando ProntoTV Cliente');
     console.log('📱 Device ID:', CONFIG.DEVICE_ID);
     console.log('📦 Modo APK:', AppState.isAPKMode);
-    
+
     // Inicializar WebSocket (solo si no es modo preview)
     if (!AppState.isPreviewMode) {
         initWebSocket();
-        
+
         // Escuchar solicitudes de estado desde el admin
         if (AppState.socket) {
             AppState.socket.on('request-playback-state', () => {
@@ -162,7 +162,7 @@ function init() {
             });
         }
     }
-    
+
     // Si está en modo APK, ocultar el botón de activar audio permanentemente
     if (AppState.isAPKMode) {
         const unmuteBtn = document.getElementById('audio-unmute-btn');
@@ -172,20 +172,20 @@ function init() {
             console.log('🔇 Botón de activar audio ocultado (modo APK)');
         }
     }
-    
+
     // Verificar si hay parámetro de reproducción directa en la URL
     const urlParams = new URLSearchParams(window.location.search);
     const playUrl = urlParams.get('play');
     const playName = urlParams.get('name');
     AppState.isPreviewMode = urlParams.get('preview') === 'true';
     const isPreviewMode = AppState.isPreviewMode; // Alias local para compatibilidad
-    
+
     if (playUrl) {
         console.log('🎬 Modo reproducción directa detectado');
         console.log('📹 URL del video:', playUrl);
         console.log('📝 Nombre:', playName);
         console.log('👁️ Modo preview:', isPreviewMode);
-        
+
         // Decodificar URL
         let decodedUrl;
         try {
@@ -193,9 +193,9 @@ function init() {
         } catch (e) {
             decodedUrl = playUrl; // Si falla, usar la URL original
         }
-        
+
         console.log('🔗 URL decodificada:', decodedUrl);
-        
+
         // Reproducir video directamente sin esperar al servidor
         const content = {
             url: decodedUrl,
@@ -203,27 +203,27 @@ function init() {
             type: 'video',
             allowAudio: !isPreviewMode // En preview, mantener muted
         };
-        
+
         // En modo APK, siempre habilitar audio automáticamente (excepto en preview)
         if (AppState.isAPKMode && !isPreviewMode) {
             content.allowAudio = true;
         }
-        
+
         // Determinar tipo automáticamente
         const urlLower = content.url.toLowerCase();
         if (/\.(jpg|jpeg|png|gif|webp|svg)$/i.test(urlLower)) {
             content.type = 'image';
         }
-        
+
         console.log('📋 Contenido a reproducir:', content);
-        
+
         showSplash('Cargando video...');
-        
+
         // Esperar a que el DOM esté completamente listo
         const startPlayback = () => {
             if (elements.videoPlayer) {
                 console.log('✅ DOM listo, iniciando reproducción...');
-                
+
                 // En modo preview, mantener muted
                 if (isPreviewMode) {
                     elements.videoPlayer.muted = true;
@@ -236,7 +236,7 @@ function init() {
                         elements.videoPlayer.removeAttribute('muted');
                     }
                     elements.videoPlayer.volume = 1.0;
-                    
+
                     // Mostrar botón de activar audio siempre en reproducción directa
                     const unmuteBtn = document.getElementById('audio-unmute-btn');
                     if (unmuteBtn) {
@@ -247,9 +247,9 @@ function init() {
                         console.error('❌ Botón audio-unmute-btn no encontrado en el DOM');
                     }
                 }
-                
+
                 playContent(content);
-                
+
                 // En modo preview, no registrar dispositivo ni iniciar sincronización
                 if (!isPreviewMode) {
                     setTimeout(() => {
@@ -265,25 +265,25 @@ function init() {
                 setTimeout(startPlayback, 100);
             }
         };
-        
+
         // Iniciar reproducción después de un breve delay
         setTimeout(startPlayback, 300);
-        
+
         return; // No iniciar sincronización normal
     }
-    
+
     // Si está en modo preview, usar el device_id de la URL y obtener la programación
     if (AppState.isPreviewMode) {
         console.log('👁️ Modo preview activado');
         console.log('📱 Device ID del TV:', CONFIG.DEVICE_ID);
-        
+
         // En modo preview, ocultar completamente el estado de conexión
         // (pero mantenerlo visible en modo normal)
         // No hacer nada aquí, dejar el estado visible
-        
+
         // No mostrar splash, ir directo a cargar contenido
         hideSplash();
-        
+
         // Función para obtener y reproducir contenido del TV
         const loadTVContent = async () => {
             try {
@@ -293,13 +293,13 @@ function init() {
                     throw new Error('Error al obtener programación');
                 }
                 const data = await response.json();
-                
+
                 console.log('📺 Respuesta del servidor:', data);
-                
+
                 if (data.content) {
                     console.log('📺 Contenido del TV obtenido:', data.content);
                     console.log('📅 Schedule recibido:', data.schedule);
-                    
+
                     // Calcular tiempo transcurrido desde el inicio de la programación
                     let elapsedTime = 0;
                     if (data.schedule && data.schedule.start_time) {
@@ -308,10 +308,10 @@ function init() {
                         const nowMinutes = now.getMinutes();
                         const nowSeconds = now.getSeconds();
                         const nowTotalSeconds = nowHours * 3600 + nowMinutes * 60 + nowSeconds;
-                        
+
                         const [startHours, startMinutes] = data.schedule.start_time.split(':').map(Number);
                         const startTotalSeconds = startHours * 3600 + startMinutes * 60;
-                        
+
                         // Calcular diferencia en segundos
                         if (nowTotalSeconds >= startTotalSeconds) {
                             // La programación empezó hoy
@@ -320,17 +320,17 @@ function init() {
                             // La programación empezó ayer (pasar medianoche)
                             elapsedTime = (24 * 3600 - startTotalSeconds) + nowTotalSeconds;
                         }
-                        
+
                         console.log('⏱️ Tiempo transcurrido desde inicio:', elapsedTime, 'segundos');
                         console.log('⏱️ Hora actual:', `${nowHours}:${nowMinutes}:${nowSeconds}`, 'Hora inicio:', data.schedule.start_time);
                     }
-                    
+
                     // Si es una secuencia, actualizar las duraciones de los videos si están disponibles
                     if (data.content.type === 'sequence' && data.content.videos && Array.isArray(data.content.videos)) {
                         // Las duraciones deberían venir del servidor, pero si no están, se calcularán cuando se carguen los videos
                         console.log('📊 Secuencia con', data.content.videos.length, 'videos. Duraciones:', data.content.videos.map(v => ({ name: v.name, duration: v.duration || 'N/A' })));
                     }
-                    
+
                     // Reproducir el contenido exacto que el TV está viendo
                     const content = {
                         ...data.content,
@@ -338,7 +338,7 @@ function init() {
                         schedule: data.schedule, // Incluir schedule para calcular tiempo
                         elapsedTime: elapsedTime // Tiempo transcurrido en segundos
                     };
-                    
+
                     // Determinar tipo si no está definido
                     if (!content.type) {
                         const urlLower = content.url?.toLowerCase() || '';
@@ -348,9 +348,9 @@ function init() {
                             content.type = 'video';
                         }
                     }
-                    
+
                     playContent(content);
-                    
+
                     // Actualizar contenido periódicamente (cada 30 segundos) para mantener sincronizado
                     if (!AppState.previewInterval) {
                         AppState.previewInterval = setInterval(loadTVContent, 30000); // 30 segundos cuando hay contenido
@@ -359,13 +359,13 @@ function init() {
                     // Sin contenido, mostrar pantalla de espera
                     elements.waitingScreen.classList.remove('hidden');
                     hideAllMedia();
-                    
+
                     // Limpiar intervalo anterior si existe
                     if (AppState.previewInterval) {
                         clearInterval(AppState.previewInterval);
                         AppState.previewInterval = null;
                     }
-                    
+
                     // Reintentar después de 60 segundos cuando no hay contenido (menos frecuente)
                     if (!AppState.previewRetryTimeout) {
                         AppState.previewRetryTimeout = setTimeout(() => {
@@ -376,12 +376,12 @@ function init() {
                 }
             } catch (error) {
                 console.error('Error obteniendo contenido del TV:', error);
-                
+
                 // Limpiar timeout anterior si existe
                 if (AppState.previewRetryTimeout) {
                     clearTimeout(AppState.previewRetryTimeout);
                 }
-                
+
                 // Reintentar después de 60 segundos cuando hay error
                 AppState.previewRetryTimeout = setTimeout(() => {
                     AppState.previewRetryTimeout = null;
@@ -389,17 +389,17 @@ function init() {
                 }, 60000); // 60 segundos
             }
         };
-        
+
         // Iniciar carga inmediatamente
         loadTVContent();
-        
+
         return; // No iniciar flujo normal en preview
     }
-    
+
     // Flujo normal
     // Mostrar splash screen inicialmente
     showSplash('Inicializando...');
-    
+
     // Esperar un momento antes de conectar
     setTimeout(() => {
         registerDevice();
@@ -447,7 +447,7 @@ async function registerDevice() {
                 name: `TV-${CONFIG.DEVICE_ID.slice(-6)}`
             })
         });
-        
+
         if (response.ok) {
             const data = await response.json();
             console.log('✅ Dispositivo registrado:', data);
@@ -468,13 +468,13 @@ async function registerDevice() {
 async function fetchPlayback() {
     try {
         const response = await fetch(`${CONFIG.SERVER_URL}/client/playback/${CONFIG.DEVICE_ID}`);
-        
+
         if (!response.ok) {
             throw new Error('Error al obtener programación');
         }
-        
+
         const data = await response.json();
-        
+
         console.log('📺 Respuesta del servidor:', {
             hasContent: !!data.content,
             contentType: data.content?.type,
@@ -483,23 +483,23 @@ async function fetchPlayback() {
             schedule: data.schedule,
             fullResponse: data
         });
-        
+
         // Log detallado del contenido
         if (data.content) {
             console.log('📋 Detalles del contenido:', JSON.stringify(data.content, null, 2));
         }
-        
+
         if (data.content) {
             console.log('✅ Contenido recibido, iniciando reproducción...');
             // Hay contenido programado
             let isDifferent = false;
-            
+
             // Comparación mejorada para secuencias
             if (data.content.type === 'sequence') {
                 // Para secuencias, comparar URLs de los videos (ignorar duraciones que pueden cambiar)
                 const currentVideos = AppState.currentContent?.videos || [];
                 const newVideos = data.content.videos || [];
-                
+
                 // Comparar número de videos y sus URLs
                 if (currentVideos.length !== newVideos.length) {
                     isDifferent = true;
@@ -512,17 +512,17 @@ async function fetchPlayback() {
                         }
                     }
                 }
-                
+
                 // También comparar si el loop cambió
                 if (AppState.currentContent?.loop !== data.content.loop) {
                     isDifferent = true;
                 }
             } else {
                 // Para contenido normal (video, image, etc.)
-                isDifferent = AppState.currentContent?.url !== data.content.url || 
+                isDifferent = AppState.currentContent?.url !== data.content.url ||
                     AppState.contentType !== data.content.type;
             }
-            
+
             console.log('🔍 Comparación de contenido:', {
                 currentType: AppState.contentType,
                 newType: data.content.type,
@@ -530,21 +530,21 @@ async function fetchPlayback() {
                 isPlaying: AppState.isPlaying,
                 isSequence: data.content.type === 'sequence'
             });
-            
+
             if (isDifferent) {
                 // Cambiar de contenido
                 console.log('🔄 Contenido diferente, reproduciendo...');
                 playContent(data.content);
             } else {
                 console.log('⏸️ Contenido igual, no se cambia');
-                
+
                 // Para secuencias, no hacer nada si ya está reproduciendo correctamente
                 if (data.content.type === 'sequence' && AppState.isPlaying && AppState.contentType === 'sequence') {
                     console.log('📺 Secuencia ya está reproduciendo, no se reinicia');
                     // No hacer nada más, la secuencia continúa normalmente
                     return;
                 }
-                
+
                 // Si el contenido es el mismo pero no se está reproduciendo, forzar reproducción
                 if (!AppState.isPlaying && data.content.type === 'video') {
                     console.log('⚠️ Contenido igual pero no se está reproduciendo, forzando reproducción...');
@@ -567,7 +567,7 @@ async function fetchPlayback() {
             updateConnectionStatus(true);
             hideError();
             hideSplash();
-            
+
             // Cuando hay contenido, usar intervalo normal
             if (AppState.syncInterval) {
                 clearInterval(AppState.syncInterval);
@@ -589,7 +589,7 @@ async function fetchPlayback() {
             }
             updateConnectionStatus(true); // Asegurar que el estado muestre "En línea"
             showWaiting('No hay contenido programado para este momento');
-            
+
             // Cuando no hay contenido, aumentar el intervalo de sincronización
             // para reducir peticiones innecesarias
             if (AppState.syncInterval) {
@@ -603,12 +603,12 @@ async function fetchPlayback() {
                 }
             }, 120000); // 2 minutos cuando no hay contenido
         }
-        
+
         AppState.retryCount = 0;
     } catch (error) {
         console.error('❌ Error al obtener programación:', error);
         AppState.retryCount++;
-        
+
         if (AppState.retryCount >= AppState.maxRetries) {
             updateConnectionStatus(false);
             showError('Error de conexión. Verificando...');
@@ -624,22 +624,22 @@ function playContent(content) {
         url: content.url,
         fullContent: content
     });
-    
+
     // En modo APK, siempre habilitar audio automáticamente
     if (AppState.isAPKMode && !content.allowAudio) {
         content.allowAudio = true;
         console.log('📦 Modo APK: Audio habilitado automáticamente');
     }
-    
+
     // Guardar contenido actual (hacer copia profunda para evitar mutaciones)
     AppState.currentContent = JSON.parse(JSON.stringify(content));
     AppState.contentType = content.type;
-    
+
     hideAllMedia();
     stopAllIntervals();
-    
+
     console.log('🎯 Tipo de contenido:', content.type);
-    
+
     switch (content.type) {
         case 'video':
             console.log('📹 Llamando a playVideo...');
@@ -668,7 +668,7 @@ function playContent(content) {
 }
 
 // Reproducir video
-function playVideo(content) {
+async function playVideo(content) {
     console.log('🎬 ========== INICIANDO REPRODUCCIÓN DE VIDEO ==========');
     console.log('🎬 Iniciando reproducción de video:', {
         url: content.url,
@@ -676,23 +676,23 @@ function playVideo(content) {
         type: content.type,
         fullContent: content
     });
-    
+
     // Verificar que el elemento existe
     if (!elements.videoPlayer) {
         console.error('❌ Elemento videoPlayer no encontrado');
         showError('Error: reproductor de video no encontrado');
         return;
     }
-    
+
     // Verificar que hay URL
     if (!content.url) {
         console.error('❌ No hay URL en el contenido');
         showError('Error: no hay URL de video');
         return;
     }
-    
+
     console.log('📹 Estableciendo src del video:', content.url);
-    
+
     // Verificar si el botón existe
     const unmuteBtn = document.getElementById('audio-unmute-btn');
     if (!unmuteBtn) {
@@ -700,7 +700,7 @@ function playVideo(content) {
     } else {
         console.log('✅ Botón audio-unmute-btn encontrado en el DOM');
     }
-    
+
     // Habilitar audio si viene de reproducción directa
     if (content.allowAudio) {
         console.log('🔊 Habilitando audio para reproducción directa');
@@ -713,7 +713,7 @@ function playVideo(content) {
         }
         // Asegurar que el volumen esté al máximo
         elements.videoPlayer.volume = 1.0;
-        
+
         // Mostrar botón siempre para reproducción directa
         if (unmuteBtn) {
             unmuteBtn.classList.remove('hidden');
@@ -722,7 +722,7 @@ function playVideo(content) {
             unmuteBtn.style.opacity = '1';
             console.log('🔊 Botón mostrado (reproducción directa)');
         }
-        
+
         // Agregar evento de click para activar audio si el navegador lo bloquea
         const enableAudioOnClick = () => {
             if (elements.videoPlayer.muted) {
@@ -736,7 +736,7 @@ function playVideo(content) {
         };
         document.addEventListener('click', enableAudioOnClick, { once: true });
         document.addEventListener('touchstart', enableAudioOnClick, { once: true });
-        
+
         console.log('📊 Estado inicial de audio:', {
             muted: elements.videoPlayer.muted,
             volume: elements.videoPlayer.volume,
@@ -745,7 +745,7 @@ function playVideo(content) {
     } else {
         // Para programaciones normales, mantener muted pero mostrar botón para que el usuario pueda activarlo
         elements.videoPlayer.muted = true;
-        
+
         // Mostrar botón para que el usuario pueda activar audio si quiere
         if (unmuteBtn) {
             unmuteBtn.classList.remove('hidden');
@@ -755,7 +755,7 @@ function playVideo(content) {
             console.log('🔊 Botón mostrado (programación normal - usuario puede activar audio)');
         }
     }
-    
+
     // Ocultar otros contenedores PRIMERO
     elements.splashScreen.classList.add('hidden');
     elements.splashScreen.style.display = 'none';
@@ -765,7 +765,7 @@ function playVideo(content) {
     elements.errorScreen.classList.add('hidden');
     elements.carouselContainer.classList.add('hidden');
     elements.randomImagesContainer.classList.add('hidden');
-    
+
     // FORZAR que el contenedor esté visible ANTES de cargar el video
     elements.videoContainer.classList.remove('hidden');
     elements.videoContainer.style.cssText = `
@@ -781,7 +781,7 @@ function playVideo(content) {
         margin: 0 !important;
         padding: 0 !important;
     `;
-    
+
     // FORZAR que el video player esté visible
     elements.videoPlayer.style.cssText = `
         display: block !important;
@@ -795,7 +795,7 @@ function playVideo(content) {
         margin: 0 !important;
         padding: 0 !important;
     `;
-    
+
     // IMPORTANTE: Quitar muted ANTES de establecer src para que funcione
     if (content.allowAudio) {
         console.log('🔊 Quitando muted ANTES de establecer src');
@@ -807,15 +807,41 @@ function playVideo(content) {
             elements.videoPlayer.removeAttribute('muted');
         }
     }
-    
+
     // IMPORTANTE: Asegurar que NO tenga loop a menos que el contenido lo requiera
     elements.videoPlayer.removeAttribute('loop');
     elements.videoPlayer.loop = false;
     console.log('🔄 Loop removido del video player (se maneja desde JavaScript)');
-    
+
+    // --- LOGICA DE CACHÉ OFFLINE ---
+    let videoSrc = content.url;
+
+    if (AppState.isAPKMode && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.VideoCache) {
+        console.log('📦 Modo APK detectado: Iniciando lógica de caché...');
+        try {
+            // Mostrar mensaje solo si la descarga puede tardar (no sabemos si está en caché aún)
+            // Pero para no flashear, podemos asumirlo.
+            // Si el archivo ya existe es rápido.
+
+            const result = await window.Capacitor.Plugins.VideoCache.cacheVideo({ url: content.url });
+
+            if (result && result.path) {
+                console.log('📦 Video disponible localmente:', result.path);
+                console.log('📦 Estado caché:', result.cached ? 'YA ESTABA EN CACHÉ' : 'DESCARGADO AHORA');
+
+                // Convertir path nativo a URL webview
+                videoSrc = window.Capacitor.convertFileSrc(result.path);
+                console.log('📦 URL para WebView:', videoSrc);
+            }
+        } catch (e) {
+            console.error('📦 Error en caché de video:', e);
+            console.warn('⚠️ Usando URL de streaming por defecto debido a error en caché');
+        }
+    }
+
     // Establecer src del video
-    elements.videoPlayer.src = content.url;
-    
+    elements.videoPlayer.src = videoSrc;
+
     // Mostrar botón de activar audio si es reproducción directa
     if (content.allowAudio) {
         const unmuteBtn = document.getElementById('audio-unmute-btn');
@@ -824,7 +850,7 @@ function playVideo(content) {
             console.log('🔊 Botón de activar audio mostrado');
         }
     }
-    
+
     console.log('📺 Contenedor de video visible:', {
         containerHidden: elements.videoContainer.classList.contains('hidden'),
         containerDisplay: window.getComputedStyle(elements.videoContainer).display,
@@ -833,12 +859,12 @@ function playVideo(content) {
         muted: elements.videoPlayer.muted,
         volume: elements.videoPlayer.volume
     });
-    
+
     // Event listeners para debug
     elements.videoPlayer.onloadstart = () => {
         console.log('🔄 Video: carga iniciada');
     };
-    
+
     elements.videoPlayer.onloadedmetadata = () => {
         const videoDuration = elements.videoPlayer.duration;
         console.log('✅ Video: metadatos cargados', {
@@ -847,13 +873,13 @@ function playVideo(content) {
             videoWidth: elements.videoPlayer.videoWidth,
             videoHeight: elements.videoPlayer.videoHeight
         });
-        
+
         // Si el video tiene duración y no está en modo preview, intentar actualizarla en Firestore
         if (videoDuration && videoDuration > 0 && !AppState.isPreviewMode && content.url && AppState.currentContent) {
             // Buscar el video_id del contenido actual para actualizar su duración
             updateVideoDurationIfNeeded(content.url, Math.floor(videoDuration));
         }
-        
+
         // En modo preview, calcular y establecer el tiempo correcto del video
         if (AppState.isPreviewMode && content.elapsedTime !== undefined && content.elapsedTime > 0) {
             const videoDuration = elements.videoPlayer.duration;
@@ -863,7 +889,7 @@ function playVideo(content) {
                     let totalElapsed = content.elapsedTime;
                     let currentVideoIndex = 0;
                     let timeInCurrentVideo = 0;
-                    
+
                     // Calcular en qué video de la secuencia estamos
                     for (let i = 0; i < content.videos.length; i++) {
                         const videoDuration = content.videos[i].duration || 0;
@@ -876,14 +902,14 @@ function playVideo(content) {
                             break;
                         }
                     }
-                    
+
                     // Si hay loop, aplicar módulo
                     if (content.loop) {
                         currentVideoIndex = currentVideoIndex % content.videos.length;
                     }
-                    
+
                     console.log('📊 Secuencia - Video actual:', currentVideoIndex, 'Tiempo en video:', timeInCurrentVideo);
-                    
+
                     // Si estamos en el primer video de la secuencia, establecer el tiempo
                     if (currentVideoIndex === 0 && content.url === content.videos[0].url) {
                         const targetTime = Math.min(timeInCurrentVideo, videoDuration);
@@ -898,7 +924,7 @@ function playVideo(content) {
                 }
             }
         }
-        
+
         // Asegurar audio después de cargar metadatos
         if (content.allowAudio) {
             console.log('🔊 Habilitando audio después de cargar metadatos');
@@ -911,14 +937,14 @@ function playVideo(content) {
             });
         }
     };
-    
+
     elements.videoPlayer.onloadeddata = () => {
         console.log('✅ Video: datos cargados, listo para reproducir');
     };
-    
+
     elements.videoPlayer.oncanplay = () => {
         console.log('✅ Video: puede reproducirse');
-        
+
         // En modo preview, asegurar que el tiempo esté establecido correctamente
         if (AppState.isPreviewMode && content.elapsedTime !== undefined && content.elapsedTime > 0) {
             const videoDuration = elements.videoPlayer.duration;
@@ -934,11 +960,11 @@ function playVideo(content) {
                 }
             }
         }
-        
+
         // FORZAR visibilidad cuando el video puede reproducirse
         elements.splashScreen.classList.add('hidden');
         elements.splashScreen.style.cssText = 'display: none !important; visibility: hidden !important; z-index: 1 !important;';
-        
+
         elements.videoContainer.classList.remove('hidden');
         elements.videoContainer.style.cssText = `
             display: flex !important;
@@ -952,13 +978,13 @@ function playVideo(content) {
             height: 100vh !important;
         `;
     };
-    
+
     elements.videoPlayer.oncanplaythrough = () => {
         console.log('✅ Video: puede reproducirse completamente');
         // FORZAR visibilidad cuando el video está completamente listo
         elements.splashScreen.classList.add('hidden');
         elements.splashScreen.style.cssText = 'display: none !important; visibility: hidden !important; z-index: 1 !important;';
-        
+
         elements.videoContainer.classList.remove('hidden');
         elements.videoContainer.style.cssText = `
             display: flex !important;
@@ -972,11 +998,11 @@ function playVideo(content) {
             height: 100vh !important;
         `;
     };
-    
+
     // Forzar carga del video
     console.log('🔄 Cargando video...');
     elements.videoPlayer.load();
-    
+
     // Intentar reproducir cuando el video esté listo
     const tryPlay = () => {
         console.log('▶️ Intentando reproducir video...');
@@ -985,7 +1011,7 @@ function playVideo(content) {
             networkState: elements.videoPlayer.networkState,
             paused: elements.videoPlayer.paused
         });
-        
+
         // Asegurar audio antes de reproducir
         if (content.allowAudio) {
             console.log('🔊 Habilitando audio antes de reproducir');
@@ -993,7 +1019,7 @@ function playVideo(content) {
             elements.videoPlayer.removeAttribute('muted');
             elements.videoPlayer.volume = 1.0;
         }
-        
+
         elements.videoPlayer.play().then(() => {
             console.log('✅ Video iniciado correctamente');
             console.log('📊 Estado del video:', {
@@ -1006,11 +1032,11 @@ function playVideo(content) {
                 muted: elements.videoPlayer.muted,
                 volume: elements.videoPlayer.volume
             });
-            
+
             // FORZAR visibilidad del contenedor y video
             elements.splashScreen.classList.add('hidden');
             elements.splashScreen.style.cssText = 'display: none !important; visibility: hidden !important; z-index: 1 !important;';
-            
+
             elements.videoContainer.classList.remove('hidden');
             elements.videoContainer.style.cssText = `
                 display: flex !important;
@@ -1025,7 +1051,7 @@ function playVideo(content) {
                 margin: 0 !important;
                 padding: 0 !important;
             `;
-            
+
             elements.videoPlayer.style.cssText = `
                 display: block !important;
                 visibility: visible !important;
@@ -1038,7 +1064,7 @@ function playVideo(content) {
                 margin: 0 !important;
                 padding: 0 !important;
             `;
-            
+
             console.log('📺 Verificando visibilidad:', {
                 containerDisplay: window.getComputedStyle(elements.videoContainer).display,
                 containerVisibility: window.getComputedStyle(elements.videoContainer).visibility,
@@ -1064,7 +1090,7 @@ function playVideo(content) {
             }, 1000);
         });
     };
-    
+
     // Intentar reproducir cuando el video pueda reproducirse
     if (elements.videoPlayer.readyState >= 3) {
         // Ya tiene suficientes datos
@@ -1075,7 +1101,7 @@ function playVideo(content) {
             console.log('✅ Video listo para reproducir (canplay)');
             tryPlay();
         };
-        
+
         // Fallback: intentar después de un timeout
         setTimeout(() => {
             if (elements.videoPlayer.paused) {
@@ -1084,13 +1110,13 @@ function playVideo(content) {
             }
         }, 2000);
     }
-    
+
     AppState.isPlaying = true;
-    
+
     // Limpiar event listeners anteriores para evitar duplicados
     elements.videoPlayer.onended = null;
     elements.videoPlayer.onerror = null;
-    
+
     elements.videoPlayer.onended = () => {
         console.log('⏹️ Video finalizado');
         console.log('📊 Estado al finalizar:', {
@@ -1098,13 +1124,13 @@ function playVideo(content) {
             currentTime: elements.videoPlayer.currentTime,
             readyState: elements.videoPlayer.readyState
         });
-        
+
         // Si es parte de una secuencia, el manejo se hace en playNextInSequence
         if (AppState.contentType === 'sequence') {
             console.log('📺 Video de secuencia terminado, manejado por playNextInSequence');
             return;
         }
-        
+
         // Si el contenido actual tiene loop explícitamente configurado, volver a reproducir
         // IMPORTANTE: Solo hacer loop si está explícitamente configurado como true
         if (AppState.currentContent && AppState.currentContent.url && AppState.currentContent.loop === true) {
@@ -1124,7 +1150,7 @@ function playVideo(content) {
             fetchPlayback();
         }
     };
-    
+
     elements.videoPlayer.onerror = (e) => {
         console.error('❌ Error en el video:', e);
         console.error('Error code:', elements.videoPlayer.error);
@@ -1138,7 +1164,7 @@ function playVideo(content) {
         console.error('Video currentSrc:', elements.videoPlayer.currentSrc);
         showError('Error al cargar el video. Verifica la URL.');
     };
-    
+
     elements.videoPlayer.onstalled = () => {
         console.warn('⚠️ Video: descarga estancada - reintentando...');
         // Reintentar carga si se estanca
@@ -1148,18 +1174,18 @@ function playVideo(content) {
             }
         }, 2000);
     };
-    
+
     elements.videoPlayer.onsuspend = () => {
         console.warn('⚠️ Video: descarga suspendida (normal durante carga)');
     };
-    
+
     elements.videoPlayer.onwaiting = () => {
         console.warn('⚠️ Video: esperando datos (normal durante carga)');
     };
-    
+
     elements.videoPlayer.onplaying = () => {
         console.log('▶️ Video: reproduciendo activamente');
-        
+
         // Verificar estado de audio y mostrar botón si está muted
         const checkAudioAndShowButton = () => {
             const unmuteBtn = document.getElementById('audio-unmute-btn');
@@ -1167,10 +1193,10 @@ function playVideo(content) {
                 console.error('❌ Botón audio-unmute-btn no existe en el DOM');
                 return;
             }
-            
+
             // Verificar si el video está muted
             const isMuted = elements.videoPlayer.muted || elements.videoPlayer.hasAttribute('muted');
-            
+
             console.log('📊 Verificación de audio:', {
                 muted: elements.videoPlayer.muted,
                 hasMutedAttr: elements.videoPlayer.hasAttribute('muted'),
@@ -1178,7 +1204,7 @@ function playVideo(content) {
                 isMuted: isMuted,
                 allowAudio: content.allowAudio
             });
-            
+
             // En modo APK, nunca mostrar el botón
             if (AppState.isAPKMode) {
                 unmuteBtn.style.display = 'none';
@@ -1205,14 +1231,14 @@ function playVideo(content) {
                 console.log('🔇 Botón de activar audio ocultado (audio activo)');
             }
         };
-        
+
         // Verificar inmediatamente
         checkAudioAndShowButton();
-        
+
         // Verificar de nuevo después de un momento
         setTimeout(checkAudioAndShowButton, 500);
         setTimeout(checkAudioAndShowButton, 1500);
-        
+
         // En modo APK, siempre habilitar audio automáticamente
         if (AppState.isAPKMode) {
             console.log('📦 Modo APK: Habilitando audio automáticamente');
@@ -1227,13 +1253,13 @@ function playVideo(content) {
             elements.videoPlayer.removeAttribute('muted');
             elements.videoPlayer.volume = 1.0;
         }
-        
+
         // FORZAR visibilidad del contenedor y video
         elements.splashScreen.classList.add('hidden');
         elements.splashScreen.style.display = 'none';
         elements.splashScreen.style.visibility = 'hidden';
         elements.splashScreen.style.zIndex = '1';
-        
+
         elements.videoContainer.classList.remove('hidden');
         elements.videoContainer.style.cssText = `
             display: flex !important;
@@ -1248,7 +1274,7 @@ function playVideo(content) {
             margin: 0 !important;
             padding: 0 !important;
         `;
-        
+
         elements.videoPlayer.style.cssText = `
             display: block !important;
             visibility: visible !important;
@@ -1261,21 +1287,21 @@ function playVideo(content) {
             margin: 0 !important;
             padding: 0 !important;
         `;
-        
+
         elements.waitingScreen.classList.add('hidden');
         elements.errorScreen.classList.add('hidden');
-        
+
         // Verificar visibilidad final
         const containerStyle = window.getComputedStyle(elements.videoContainer);
         const videoStyle = window.getComputedStyle(elements.videoPlayer);
         const splashStyle = window.getComputedStyle(elements.splashScreen);
-        
+
         // Verificar dimensiones del video
         const videoWidth = elements.videoPlayer.videoWidth;
         const videoHeight = elements.videoPlayer.videoHeight;
         const videoRect = elements.videoPlayer.getBoundingClientRect();
         const containerRect = elements.videoContainer.getBoundingClientRect();
-        
+
         console.log('📺 Estado final de visibilidad:', {
             containerDisplay: containerStyle.display,
             containerVisibility: containerStyle.visibility,
@@ -1297,7 +1323,7 @@ function playVideo(content) {
             bodyOverflow: window.getComputedStyle(document.body).overflow,
             htmlOverflow: window.getComputedStyle(document.documentElement).overflow
         });
-        
+
         // Verificar que el video realmente se está reproduciendo
         console.log('🎬 Estado de reproducción:', {
             paused: elements.videoPlayer.paused,
@@ -1306,7 +1332,7 @@ function playVideo(content) {
             duration: elements.videoPlayer.duration,
             readyState: elements.videoPlayer.readyState
         });
-        
+
         // Si el video tiene dimensiones 0, hay un problema
         if (videoRect.width === 0 || videoRect.height === 0) {
             console.error('❌ PROBLEMA: Video tiene dimensiones 0!', {
@@ -1315,7 +1341,7 @@ function playVideo(content) {
                 videoHeight,
                 containerRect
             });
-            
+
             // Intentar forzar dimensiones
             elements.videoPlayer.style.width = '100vw';
             elements.videoPlayer.style.height = '100vh';
@@ -1323,7 +1349,7 @@ function playVideo(content) {
             elements.videoPlayer.style.minHeight = '100vh';
         }
     };
-    
+
     elements.videoPlayer.onprogress = () => {
         if (elements.videoPlayer.buffered.length > 0) {
             const bufferedEnd = elements.videoPlayer.buffered.end(elements.videoPlayer.buffered.length - 1);
@@ -1342,7 +1368,7 @@ function playVideo(content) {
 function playImage(content) {
     elements.randomImage.src = content.url;
     elements.randomImagesContainer.classList.remove('hidden');
-    
+
     // Cambiar imagen después de un tiempo
     if (content.duration) {
         setTimeout(() => {
@@ -1357,7 +1383,7 @@ function playCarousel(content) {
         console.warn('No hay imágenes para el carrusel');
         return;
     }
-    
+
     // Normalizar formato de imágenes (puede ser array de strings o array de objetos)
     AppState.carouselImages = content.images.map(img => {
         if (typeof img === 'string') {
@@ -1366,15 +1392,15 @@ function playCarousel(content) {
         return img;
     });
     AppState.carouselIndex = 0;
-    
+
     elements.carouselContainer.classList.remove('hidden');
-    
+
     // Crear indicadores
     createCarouselIndicators();
-    
+
     // Mostrar primera imagen
     showCarouselImage(0);
-    
+
     // Cambiar imagen automáticamente
     const interval = content.interval || 5000; // 5 segundos por defecto
     AppState.carouselInterval = setInterval(() => {
@@ -1389,7 +1415,7 @@ function showCarouselImage(index) {
         const image = AppState.carouselImages[index];
         const imageUrl = typeof image === 'string' ? image : image.url;
         elements.carouselImage.src = imageUrl;
-        
+
         // Actualizar indicadores
         updateCarouselIndicators(index);
     }
@@ -1398,7 +1424,7 @@ function showCarouselImage(index) {
 // Crear indicadores del carrusel
 function createCarouselIndicators() {
     elements.carouselIndicators.innerHTML = '';
-    
+
     AppState.carouselImages.forEach((_, index) => {
         const indicator = document.createElement('div');
         indicator.className = 'carousel-indicator';
@@ -1429,7 +1455,7 @@ function playRandomImages(content) {
         console.warn('No hay imágenes aleatorias');
         return;
     }
-    
+
     // Normalizar formato de imágenes (puede ser array de strings o array de objetos)
     AppState.randomImages = content.images.map(img => {
         if (typeof img === 'string') {
@@ -1438,12 +1464,12 @@ function playRandomImages(content) {
         return img;
     });
     AppState.randomImageIndex = Math.floor(Math.random() * AppState.randomImages.length);
-    
+
     elements.randomImagesContainer.classList.remove('hidden');
-    
+
     // Mostrar primera imagen aleatoria
     showRandomImage();
-    
+
     // Cambiar imagen aleatoriamente
     const interval = content.interval || 10000; // 10 segundos por defecto
     AppState.randomImageInterval = setInterval(() => {
@@ -1452,7 +1478,7 @@ function playRandomImages(content) {
         do {
             newIndex = Math.floor(Math.random() * AppState.randomImages.length);
         } while (newIndex === AppState.randomImageIndex && AppState.randomImages.length > 1);
-        
+
         AppState.randomImageIndex = newIndex;
         showRandomImage();
     }, interval);
@@ -1466,9 +1492,9 @@ async function updateVideoDurationIfNeeded(videoUrl, duration) {
         if (response.ok) {
             const videos = await response.json();
             if (videos && videos.length > 0) {
-                const video = videos.find(v => 
-                    v.url === videoUrl || 
-                    v.bunnyUrl === videoUrl || 
+                const video = videos.find(v =>
+                    v.url === videoUrl ||
+                    v.bunnyUrl === videoUrl ||
                     v.b2Url === videoUrl ||
                     (v.url && videoUrl.includes(v.url.split('/').pop())) ||
                     (v.bunnyUrl && videoUrl.includes(v.bunnyUrl.split('/').pop()))
@@ -1511,10 +1537,10 @@ function stopContent() {
     AppState.isPlaying = false;
     AppState.currentContent = null;
     AppState.contentType = null;
-    
+
     // Detener efecto Matrix
     stopMatrixEffect();
-    
+
     if (elements.videoPlayer) {
         console.log('🛑 Pausando y limpiando video player');
         elements.videoPlayer.pause();
@@ -1524,7 +1550,7 @@ function stopContent() {
     }
     AppState.contentType = null;
     AppState.isPlaying = false;
-    
+
     stopAllIntervals();
     hideAllMedia();
 }
@@ -1535,22 +1561,22 @@ function playSequence(content) {
         console.warn('No hay videos en la secuencia');
         return;
     }
-    
+
     console.log(`📺 Iniciando secuencia de ${content.videos.length} videos, loop: ${content.loop}`);
-    
+
     AppState.sequenceVideos = content.videos;
-    
+
     // En modo preview, calcular en qué video estamos basándose en elapsedTime
     if (AppState.isPreviewMode && content.elapsedTime !== undefined && content.elapsedTime > 0) {
         let totalElapsed = content.elapsedTime;
         let currentVideoIndex = 0;
         let timeInCurrentVideo = 0;
-        
+
         // Calcular en qué video de la secuencia estamos
         // Si hay videos sin duración, necesitamos cargar sus duraciones primero
         // Por ahora, calcular basándose en las duraciones disponibles
         let hasAllDurations = content.videos.every(v => v.duration && v.duration > 0);
-        
+
         if (!hasAllDurations) {
             console.warn('⚠️ Algunos videos en la secuencia no tienen duración. Se calculará cuando se carguen los metadatos.');
             // Si no hay duraciones, asumir que estamos en el primer video
@@ -1571,7 +1597,7 @@ function playSequence(content) {
                 }
             }
         }
-        
+
         // Si hay loop, aplicar módulo
         if (content.loop) {
             // Calcular cuántas veces ha dado vuelta la secuencia
@@ -1579,12 +1605,12 @@ function playSequence(content) {
             if (totalSequenceDuration > 0) {
                 const loopsCompleted = Math.floor(content.elapsedTime / totalSequenceDuration);
                 const timeInCurrentLoop = content.elapsedTime % totalSequenceDuration;
-                
+
                 // Recalcular índice y tiempo dentro del loop actual
                 totalElapsed = timeInCurrentLoop;
                 currentVideoIndex = 0;
                 timeInCurrentVideo = 0;
-                
+
                 for (let i = 0; i < content.videos.length; i++) {
                     const videoDuration = content.videos[i].duration || 0;
                     if (totalElapsed >= videoDuration && videoDuration > 0) {
@@ -1598,34 +1624,34 @@ function playSequence(content) {
                 }
             }
         }
-        
+
         AppState.sequenceIndex = currentVideoIndex;
         AppState.sequenceTimeOffset = timeInCurrentVideo; // Guardar tiempo dentro del video actual
-        
+
         console.log('📊 Secuencia - Video calculado:', currentVideoIndex, 'Tiempo en video:', timeInCurrentVideo, 'segundos');
     } else {
         AppState.sequenceIndex = 0;
         AppState.sequenceTimeOffset = 0;
     }
-    
+
     elements.videoContainer.classList.remove('hidden');
-    
+
     // IMPORTANTE: Quitar loop del video HTML individual - el loop se maneja a nivel de secuencia
     // Esto es crítico para que las secuencias sin loop no se repitan infinitamente
     elements.videoPlayer.removeAttribute('loop');
     elements.videoPlayer.loop = false;
-    
+
     // Asegurar que el video no tenga loop incluso si el HTML lo tiene por defecto
     if (elements.videoPlayer.hasAttribute('loop')) {
         elements.videoPlayer.removeAttribute('loop');
     }
-    
+
     console.log('🔍 Estado del video player:', {
         hasLoopAttribute: elements.videoPlayer.hasAttribute('loop'),
         loopProperty: elements.videoPlayer.loop,
         sequenceLoop: content.loop
     });
-    
+
     // Reproducir video calculado (o primer video si no es preview)
     playNextInSequence();
 }
@@ -1646,45 +1672,45 @@ function playNextInSequence() {
             return;
         }
     }
-    
+
     const video = AppState.sequenceVideos[AppState.sequenceIndex];
     console.log(`▶️ Reproduciendo video ${AppState.sequenceIndex + 1}/${AppState.sequenceVideos.length} de la secuencia:`, video.name);
-    
+
     // Asegurar que el video NO tenga loop antes de establecer src
     elements.videoPlayer.removeAttribute('loop');
     elements.videoPlayer.loop = false;
-    
+
     elements.videoPlayer.src = video.url;
-    
+
     // En modo preview, establecer el tiempo correcto cuando se carguen los metadatos
     if (AppState.isPreviewMode && AppState.sequenceTimeOffset !== undefined && AppState.sequenceTimeOffset > 0) {
         const timeOffset = AppState.sequenceTimeOffset;
         AppState.sequenceTimeOffset = 0; // Resetear para que solo se aplique una vez
-        
+
         console.log('⏱️ Preparando para establecer tiempo del video:', timeOffset, 'segundos');
-        
+
         // Establecer tiempo cuando se carguen los metadatos
         const setTimeOnLoad = () => {
             const videoDuration = elements.videoPlayer.duration;
             console.log('⏱️ Metadatos cargados - Duración:', videoDuration, 'Tiempo objetivo:', timeOffset);
-            
+
             if (videoDuration && videoDuration > 0 && !isNaN(videoDuration) && isFinite(videoDuration)) {
                 // Si el tiempo objetivo es mayor que la duración, este video ya terminó
                 // y deberíamos estar en el siguiente video
                 if (timeOffset >= videoDuration) {
                     console.log(`⏱️ El tiempo objetivo (${timeOffset}s) es mayor o igual a la duración (${videoDuration}s). Este video ya terminó.`);
-                    
+
                     // Actualizar la duración del video en el array para futuros cálculos
                     const currentVideo = AppState.sequenceVideos[AppState.sequenceIndex];
                     if (currentVideo) {
                         currentVideo.duration = videoDuration;
                         console.log(`📝 Duración del video ${AppState.sequenceIndex + 1} actualizada: ${videoDuration}s`);
                     }
-                    
+
                     // Recalcular: restar la duración del tiempo total y pasar al siguiente video
                     const remainingTime = timeOffset - videoDuration;
                     console.log(`⏱️ Tiempo restante después del video ${AppState.sequenceIndex + 1}: ${remainingTime}s`);
-                    
+
                     // Si hay más videos, pasar al siguiente con el tiempo restante
                     if (AppState.sequenceIndex + 1 < AppState.sequenceVideos.length) {
                         AppState.sequenceIndex++;
@@ -1706,7 +1732,7 @@ function playNextInSequence() {
                     // El tiempo está dentro de este video, establecerlo normalmente
                     elements.videoPlayer.currentTime = timeOffset;
                     console.log('⏱️ ✅ Tiempo establecido en secuencia:', timeOffset, 'segundos (duración:', videoDuration, ')');
-                    
+
                     // Verificar que se estableció correctamente
                     setTimeout(() => {
                         console.log('⏱️ Verificación - currentTime actual:', elements.videoPlayer.currentTime);
@@ -1716,7 +1742,7 @@ function playNextInSequence() {
                 console.warn('⚠️ No se pudo establecer tiempo: duración inválida', videoDuration);
             }
         };
-        
+
         // Intentar establecer inmediatamente si ya hay metadatos
         if (elements.videoPlayer.readyState >= 1) { // HAVE_METADATA
             setTimeOnLoad();
@@ -1727,24 +1753,24 @@ function playNextInSequence() {
             elements.videoPlayer.addEventListener('canplay', setTimeOnLoad, { once: true });
         }
     }
-    
+
     elements.videoPlayer.play().catch(error => {
         console.error('❌ Error al reproducir video en secuencia:', error);
         // Intentar siguiente video
         AppState.sequenceIndex++;
         playNextInSequence();
     });
-    
+
     AppState.isPlaying = true;
-    
+
     // Limpiar event listeners anteriores
     elements.videoPlayer.onended = null;
     elements.videoPlayer.onerror = null;
-    
+
     elements.videoPlayer.onended = () => {
         console.log(`⏹️ Video ${AppState.sequenceIndex + 1} terminado`);
         AppState.sequenceIndex++;
-        
+
         // Verificar si hay más videos en la secuencia
         if (AppState.sequenceIndex < AppState.sequenceVideos.length) {
             // Hay más videos, continuar con el siguiente
@@ -1766,23 +1792,23 @@ function playNextInSequence() {
                     loopType: typeof AppState.currentContent?.loop,
                     hasLoop: AppState.currentContent?.loop !== undefined
                 });
-                
+
                 // Detener reproducción
                 if (elements.videoPlayer) {
                     elements.videoPlayer.pause();
                     elements.videoPlayer.currentTime = 0;
                 }
-                
+
                 // Limpiar estado
                 AppState.sequenceVideos = [];
                 AppState.sequenceIndex = 0;
                 AppState.currentContent = null;
                 AppState.contentType = null;
                 AppState.isPlaying = false;
-                
+
                 // Mostrar pantalla de espera
                 showWaiting('Secuencia completada. Buscando siguiente programación...');
-                
+
                 // Buscar siguiente programación después de un breve delay
                 setTimeout(() => {
                     fetchPlayback();
@@ -1790,7 +1816,7 @@ function playNextInSequence() {
             }
         }
     };
-    
+
     elements.videoPlayer.onerror = () => {
         console.error('❌ Error en video de secuencia, saltando...');
         AppState.sequenceIndex++;
@@ -1829,71 +1855,71 @@ function initMatrixEffect() {
 
     const canvas = elements.matrixCanvas;
     const ctx = canvas.getContext('2d');
-    
+
     // Ajustar tamaño del canvas
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
-    
+
     // Caracteres Matrix: katakana, números y letras latinas (como en la película)
     const matrixChars = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     const chars = matrixChars.split('');
-    
+
     const fontSize = 18;
     const columns = canvas.width / fontSize;
     const drops = [];
-    
+
     // Inicializar gotas
     for (let x = 0; x < columns; x++) {
         drops[x] = Math.random() * -100;
     }
-    
+
     function draw() {
         // Fondo semitransparente para efecto de rastro
         ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
+
         // Color verde Matrix
         ctx.fillStyle = '#00ff41';
         ctx.font = fontSize + 'px monospace';
-        
+
         // Dibujar caracteres
         for (let i = 0; i < drops.length; i++) {
             const text = chars[Math.floor(Math.random() * chars.length)];
             const x = i * fontSize;
             const y = drops[i] * fontSize;
-            
+
             // Efecto de brillo en el primer carácter (más brillante)
             if (drops[i] > 0 && drops[i] < 20) {
                 ctx.fillStyle = '#ffffff';
             } else {
                 ctx.fillStyle = '#00ff41';
             }
-            
+
             ctx.fillText(text, x, y);
-            
+
             // Reiniciar gota cuando llega al final
             if (y > canvas.height && Math.random() > 0.975) {
                 drops[i] = 0;
             }
-            
+
             // Reducir velocidad (incrementar menos para que caiga más lento)
             drops[i] += 0.7;
         }
     }
-    
+
     // Limpiar animación anterior si existe
     if (matrixAnimation) {
         cancelAnimationFrame(matrixAnimation);
     }
-    
+
     // Iniciar animación
     function animate() {
         draw();
         matrixAnimation = requestAnimationFrame(animate);
     }
-    
+
     animate();
-    
+
     // Ajustar canvas cuando cambia el tamaño de la ventana
     const resizeHandler = () => {
         canvas.width = window.innerWidth;
@@ -1918,11 +1944,11 @@ function showWaiting(message = 'Esperando contenido...') {
     // No necesitamos el mensaje, solo mostrar "freedom labs" con efecto Matrix
     console.log('📺 Mostrando pantalla de espera: freedom labs con efecto Matrix');
     console.log('📺 Elemento waitingScreen:', elements.waitingScreen);
-    
+
     // Asegurar que el splash esté oculto
     hideSplash();
     hideAllMedia();
-    
+
     // Mostrar pantalla de espera
     if (elements.waitingScreen) {
         elements.waitingScreen.classList.remove('hidden');
@@ -1930,12 +1956,12 @@ function showWaiting(message = 'Esperando contenido...') {
         elements.waitingScreen.style.visibility = 'visible';
         elements.waitingScreen.style.opacity = '1';
         elements.waitingScreen.style.zIndex = '9999';
-        
+
         // Iniciar efecto Matrix después de un pequeño delay para asegurar que el canvas esté listo
         setTimeout(() => {
             initMatrixEffect();
         }, 100);
-        
+
         console.log('✅ Pantalla de espera mostrada con efecto Matrix');
     } else {
         console.error('❌ Elemento waitingScreen no encontrado');
@@ -1958,7 +1984,7 @@ function hideError() {
 // Actualizar estado de conexión
 function updateConnectionStatus(connected) {
     AppState.isConnected = connected;
-    
+
     if (connected) {
         elements.status.classList.remove('offline');
         elements.status.classList.add('online');
@@ -1974,14 +2000,14 @@ function updateConnectionStatus(connected) {
 function startSync() {
     // Sincronizar inmediatamente
     fetchPlayback();
-    
+
     // Sincronizar periódicamente con intervalo normal
     AppState.syncInterval = setInterval(() => {
         if (AppState.isConnected) {
             fetchPlayback();
         }
     }, CONFIG.SYNC_INTERVAL);
-    
+
     // Sincronización más frecuente cerca de los minutos (0, 15, 30, 45)
     // para detectar programaciones más rápido
     AppState.minuteCheckInterval = setInterval(() => {
@@ -2019,7 +2045,7 @@ function setupEventListeners() {
         registerDevice();
         fetchPlayback();
     });
-    
+
     // NO pausar el video cuando la pestaña no está visible
     // El video debe continuar reproduciéndose para mantener la sincronización con los tiempos de programación
     document.addEventListener('visibilitychange', () => {
@@ -2053,7 +2079,7 @@ function setupEventListeners() {
             }
         }
     });
-    
+
     // Prevenir que el navegador pause el video cuando la ventana pierde el foco
     window.addEventListener('blur', () => {
         console.log('👁️ Ventana perdió el foco, pero el video continúa');
@@ -2070,7 +2096,7 @@ function setupEventListeners() {
             }, 100);
         }
     });
-    
+
     // Manejar cuando la página vuelve a estar activa
     window.addEventListener('focus', () => {
         console.log('👁️ Ventana recuperó el foco');
@@ -2085,7 +2111,7 @@ function setupEventListeners() {
             fetchPlayback();
         }
     });
-    
+
     // Monitor constante para asegurar que el video no se pause automáticamente
     // Esto es crítico para mantener la sincronización con los tiempos de programación
     setInterval(() => {
@@ -2102,19 +2128,19 @@ function setupEventListeners() {
 function unmuteVideo() {
     if (elements.videoPlayer) {
         console.log('🔊 Activando audio manualmente desde botón');
-        
+
         // Forzar activación de audio de múltiples formas
         elements.videoPlayer.muted = false;
         elements.videoPlayer.removeAttribute('muted');
         elements.videoPlayer.volume = 1.0;
-        
+
         // Intentar reproducir de nuevo para activar audio
         elements.videoPlayer.play().then(() => {
             console.log('✅ Video reproducido después de activar audio');
         }).catch(err => {
             console.error('❌ Error al reproducir después de activar audio:', err);
         });
-        
+
         // Ocultar botón inmediatamente después de hacer clic
         const unmuteBtn = document.getElementById('audio-unmute-btn');
         if (unmuteBtn) {
@@ -2125,7 +2151,7 @@ function unmuteVideo() {
                 console.log('✅ Botón ocultado después de activar audio');
             }, 300);
         }
-        
+
         // Verificar estado después de un momento
         setTimeout(() => {
             console.log('📊 Estado de audio después de activar:', {
