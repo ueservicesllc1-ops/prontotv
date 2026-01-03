@@ -82,8 +82,7 @@ function initWebSocket() {
 
             // Registrar este TV
             AppState.socket.emit('tv-register', {
-                device_id: CONFIG.DEVICE_ID,
-                version: AppState.versionInfo ? `Build ${AppState.versionInfo.buildNumber}` : 'Unknown'
+                device_id: CONFIG.DEVICE_ID
             });
         });
 
@@ -93,31 +92,6 @@ function initWebSocket() {
 
         AppState.socket.on('connect_error', (error) => {
             console.error('❌ Error de conexión WebSocket:', error);
-        });
-
-        // Escuchar solicitud de detención
-        AppState.socket.on('stop-playback', () => {
-            console.log('🛑 Solicitud de detención recibida desde admin');
-            stopContent();
-            updateConnectionStatus(true);
-            showWaiting('Reproducción detenida por el administrador');
-
-            // Limpiar video forzado localmente si existe
-            if (AppState.syncInterval) {
-                clearInterval(AppState.syncInterval);
-                AppState.syncInterval = null;
-            }
-
-            // Volver a sincronizar después de un momento
-            setTimeout(() => {
-                startSync();
-            }, 5000);
-        });
-
-        // Escuchar actualización de contenido (Push)
-        AppState.socket.on('content-update', () => {
-            console.log('⚡ Actualización de contenido recibida (Push)');
-            fetchPlayback();
         });
     } catch (error) {
         console.error('❌ Error inicializando WebSocket:', error);
@@ -171,22 +145,10 @@ function sendPlaybackUpdate() {
 }
 
 // Inicializar aplicación
-// Inicializar aplicación
-async function init() {
+function init() {
     console.log('🚀 Iniciando ProntoTV Cliente');
     console.log('📱 Device ID:', CONFIG.DEVICE_ID);
     console.log('📦 Modo APK:', AppState.isAPKMode);
-
-    // Cargar información de versión de forma SÍNCRONA (await)
-    try {
-        const vRes = await fetch('version.json');
-        if (vRes.ok) {
-            AppState.versionInfo = await vRes.json();
-            console.log('📦 Versión actual:', AppState.versionInfo);
-        }
-    } catch (e) {
-        console.warn('⚠️ No se pudo cargar versión', e);
-    }
 
     // Inicializar WebSocket (solo si no es modo preview)
     if (!AppState.isPreviewMode) {
@@ -436,20 +398,15 @@ async function init() {
 
     // Flujo normal
     // Mostrar splash screen inicialmente
-    showSplash('Conectando al servidor...');
+    showSplash('Inicializando...');
 
-    // Ir directo a buscar contenido sin esperar registro
+    // Esperar un momento antes de conectar
     setTimeout(() => {
-        // Intentar registrar en segundo plano (sin bloquear)
-        registerDevice().catch(err => {
-            console.warn('⚠️ No se pudo registrar dispositivo, continuando:', err);
-        });
-
-        // Iniciar sincronización inmediatamente
+        registerDevice();
         setupEventListeners();
         startSync();
         startConnectionCheck();
-    }, 1000);
+    }, 2000);
 }
 
 // Mostrar splash screen
@@ -487,8 +444,7 @@ async function registerDevice() {
             },
             body: JSON.stringify({
                 device_id: CONFIG.DEVICE_ID,
-                name: localStorage.getItem('tv_name') || `TV-${CONFIG.DEVICE_ID.slice(-6)}`,
-                version: AppState.versionInfo ? `Build ${AppState.versionInfo.buildNumber}` : 'Unknown'
+                name: `TV-${CONFIG.DEVICE_ID.slice(-6)}`
             })
         });
 
@@ -712,7 +668,7 @@ function playContent(content) {
 }
 
 // Reproducir video
-function playVideo(content) {
+async function playVideo(content) {
     console.log('🎬 ========== INICIANDO REPRODUCCIÓN DE VIDEO ==========');
     console.log('🎬 Iniciando reproducción de video:', {
         url: content.url,
@@ -857,8 +813,34 @@ function playVideo(content) {
     elements.videoPlayer.loop = false;
     console.log('🔄 Loop removido del video player (se maneja desde JavaScript)');
 
+    // --- LOGICA DE CACHÉ OFFLINE ---
+    let videoSrc = content.url;
+
+    if (AppState.isAPKMode && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.VideoCache) {
+        console.log('📦 Modo APK detectado: Iniciando lógica de caché...');
+        try {
+            // Mostrar mensaje solo si la descarga puede tardar (no sabemos si está en caché aún)
+            // Pero para no flashear, podemos asumirlo.
+            // Si el archivo ya existe es rápido.
+
+            const result = await window.Capacitor.Plugins.VideoCache.cacheVideo({ url: content.url });
+
+            if (result && result.path) {
+                console.log('📦 Video disponible localmente:', result.path);
+                console.log('📦 Estado caché:', result.cached ? 'YA ESTABA EN CACHÉ' : 'DESCARGADO AHORA');
+
+                // Convertir path nativo a URL webview
+                videoSrc = window.Capacitor.convertFileSrc(result.path);
+                console.log('📦 URL para WebView:', videoSrc);
+            }
+        } catch (e) {
+            console.error('📦 Error en caché de video:', e);
+            console.warn('⚠️ Usando URL de streaming por defecto debido a error en caché');
+        }
+    }
+
     // Establecer src del video
-    elements.videoPlayer.src = content.url;
+    elements.videoPlayer.src = videoSrc;
 
     // Mostrar botón de activar audio si es reproducción directa
     if (content.allowAudio) {
@@ -1098,26 +1080,7 @@ function playVideo(content) {
             console.error('❌ Error al reproducir video:', error);
             console.error('URL del video:', content.url);
             console.error('Tipo de error:', error.name, error.message);
-
-            // MANEJO ESPECIAL PARA BLOQUEO DE AUDIO (NotAllowedError)
-            if (error.name === 'NotAllowedError') {
-                console.log('🔇 Audio bloqueado por navegador. Intentando reproducir SILENCIADO como fallback...');
-                elements.videoPlayer.muted = true;
-                elements.videoPlayer.play().then(() => {
-                    console.log('✅ Video reproducido en MUTE (Fallback activado)');
-                    // Mostrar botón de activar audio
-                    if (document.getElementById('audio-unmute-btn')) {
-                        document.getElementById('audio-unmute-btn').classList.remove('hidden');
-                        document.getElementById('audio-unmute-btn').style.display = 'block';
-                    }
-                }).catch(errMute => {
-                    console.error('❌ Falló reproducción incluso en mute:', errMute);
-                    showError('Error fatal de reproducción: ' + errMute.message);
-                });
-                return; // Detener aquí, ya manejamos el error
-            }
-
-            // Intentar de nuevo después de un delay (para otros errores)
+            // Intentar de nuevo después de un delay
             setTimeout(() => {
                 console.log('🔄 Reintentando reproducción...');
                 elements.videoPlayer.play().catch(err => {
@@ -2021,12 +1984,11 @@ function hideError() {
 // Actualizar estado de conexión
 function updateConnectionStatus(connected) {
     AppState.isConnected = connected;
-    const ver = AppState.versionInfo ? ` (v${AppState.versionInfo.buildNumber})` : '';
 
     if (connected) {
         elements.status.classList.remove('offline');
         elements.status.classList.add('online');
-        elements.statusText.textContent = 'En línea' + ver;
+        elements.statusText.textContent = 'En línea';
     } else {
         elements.status.classList.remove('online');
         elements.status.classList.add('offline');
@@ -2204,17 +2166,7 @@ function unmuteVideo() {
 
 // Inicializar cuando el DOM esté listo
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-        init();
-        // Inicializar sistema de actualización
-        if (window.AppUpdater) {
-            AppUpdater.init();
-        }
-    });
+    document.addEventListener('DOMContentLoaded', init);
 } else {
     init();
-    // Inicializar sistema de actualización
-    if (window.AppUpdater) {
-        AppUpdater.init();
-    }
 }

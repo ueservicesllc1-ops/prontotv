@@ -332,11 +332,11 @@ app.get('/api/tvs', async (req, res) => {
 
     const tvs = snapshot.docs.map(doc => {
       const data = doc.data();
-      // Calcular status basado en last_seen
+      // Calcular status basado en last_seen (3 minutos de margen)
       const lastSeen = toDate(data.last_seen);
       const now = new Date();
       const minutesSinceLastSeen = lastSeen ? (now - lastSeen) / (1000 * 60) : Infinity;
-      const status = minutesSinceLastSeen < 2 ? 'online' : 'offline';
+      const status = minutesSinceLastSeen < 3 ? 'online' : 'offline';
 
       return {
         id: doc.id,
@@ -427,9 +427,17 @@ app.get('/api/tvs/:id', async (req, res) => {
     }
 
     const data = doc.data();
+
+    // Calcular status basado en last_seen (igual que en /api/tvs)
+    const lastSeen = toDate(data.last_seen);
+    const now = new Date();
+    const minutesSinceLastSeen = lastSeen ? (now - lastSeen) / (1000 * 60) : Infinity;
+    const status = minutesSinceLastSeen < 3 ? 'online' : 'offline';
+
     res.json({
       id: doc.id,
       ...data,
+      status, // Sobrescribir status de la DB con el calculado
       created_at: toDate(data.created_at)?.toISOString(),
       last_seen: toDate(data.last_seen)?.toISOString()
     });
@@ -1046,14 +1054,14 @@ app.get('/api/client/playback/:device_id', async (req, res) => {
     const tvId = tvDoc.id;
     const tvData = tvDoc.data();
 
-    // ⚡ Actualizar last_seen solo si ha pasado más de 5 minutos desde la última actualización
-    // Esto reduce DRAMÁTICAMENTE las escrituras a Firestore
+    // ⚡ Actualizar last_seen solo si ha pasado más de 1 minuto desde la última actualización
+    // Esto reduce las escrituras a Firestore pero mantiene el estado "online" preciso
     const lastSeen = toDate(tvData.last_seen);
     const currentDate = new Date();
     const minutesSinceLastUpdate = lastSeen ? (currentDate - lastSeen) / (1000 * 60) : Infinity;
 
-    // Solo actualizar si han pasado más de 5 minutos (o si nunca se ha actualizado)
-    if (minutesSinceLastUpdate > 5 || !lastSeen) {
+    // Solo actualizar si ha pasado más de 1 minuto (o si nunca se ha actualizado)
+    if (minutesSinceLastUpdate > 1 || !lastSeen) {
       await Promise.race([
         tvDoc.ref.update({
           status: 'online',

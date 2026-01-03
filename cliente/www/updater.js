@@ -12,8 +12,9 @@ const AppUpdater = {
 
     // Inicializar el sistema de actualización
     init() {
-        console.log('🔄 Inicializando sistema de actualización...');
+        console.log('🔄 Sistema de actualización DESHABILITADO - No se verificarán actualizaciones');
 
+        // DESHABILITADO: No verificar actualizaciones automáticamente
         // Solo funciona en Android/Capacitor
         if (!window.Capacitor || !window.Capacitor.getPlatform || window.Capacitor.getPlatform() !== 'android') {
             console.log('⚠️ Sistema de actualización solo disponible en Android');
@@ -23,15 +24,15 @@ const AppUpdater = {
         // Cargar versión actual desde el archivo local
         this.loadCurrentVersion();
 
-        // Verificar actualizaciones al iniciar (después de 10 segundos)
-        setTimeout(() => {
-            this.checkForUpdates();
-        }, 10000);
+        // DESHABILITADO: No verificar actualizaciones al iniciar
+        // setTimeout(() => {
+        //     this.checkForUpdates();
+        // }, 10000);
 
-        // Verificar actualizaciones cada 6 horas
-        this.updateCheckInterval = setInterval(() => {
-            this.checkForUpdates();
-        }, 6 * 60 * 60 * 1000); // 6 horas
+        // DESHABILITADO: No verificar actualizaciones periódicamente
+        // this.updateCheckInterval = setInterval(() => {
+        //     this.checkForUpdates();
+        // }, 6 * 60 * 60 * 1000); // 6 horas
     },
 
     // Cargar versión actual desde archivo local

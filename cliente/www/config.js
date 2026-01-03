@@ -5,24 +5,11 @@ const urlDeviceId = urlParams.get('device_id');
 
 // Detectar automáticamente la URL del servidor basándose en la URL actual
 function getServerUrl() {
-    // Si estamos en APK/Capacitor (file:// o capacitor://), usar URL de producción
-    if (window.location.protocol === 'file:' || window.location.protocol === 'capacitor:' || window.location.protocol === 'https:') {
-        // PRODUCCIÓN - Usando Railway
-        const productionUrl = 'https://prontotv-production.up.railway.app/api';
-
-        // Para servidor local en la misma red WiFi, usa:
-        // const productionUrl = 'http://192.168.1.173:3000/api';
-
-        console.log('📱 Modo APK detectado, usando:', productionUrl);
-        return productionUrl;
-    }
-
     // Si estamos en localhost, usar localhost:3000
     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
         return 'http://localhost:3000/api';
     }
-
-    // Si estamos en producción web, usar la misma URL base pero con /api
+    // Si estamos en producción, usar la misma URL base pero con /api
     const protocol = window.location.protocol;
     const hostname = window.location.hostname;
     const port = window.location.port ? `:${window.location.port}` : '';
@@ -31,21 +18,21 @@ function getServerUrl() {
 
 const CONFIG = {
     // URL del servidor API (detectada automáticamente)
-    SERVER_URL: (function () {
+    SERVER_URL: (function() {
         const url = getServerUrl();
         console.log('🌐 URL del servidor detectada:', url);
         return url;
     })(),
-
+    
     // ID único del dispositivo (prioridad: URL > localStorage > generar nuevo)
     DEVICE_ID: urlDeviceId || localStorage.getItem('device_id') || generateDeviceId(),
-
+    
     // Intervalo de sincronización con el servidor (en milisegundos)
-    SYNC_INTERVAL: 120000, // 2 minutos (optimizado para reducir uso de cuota de Firestore)
-
+    SYNC_INTERVAL: 60000, // 60 segundos (aumentado para reducir peticiones innecesarias)
+    
     // Intervalo de verificación de conexión (en milisegundos)
     CONNECTION_CHECK_INTERVAL: 5000, // 5 segundos
-
+    
     // Tiempo de espera antes de mostrar error (en milisegundos)
     ERROR_TIMEOUT: 10000, // 10 segundos
 };

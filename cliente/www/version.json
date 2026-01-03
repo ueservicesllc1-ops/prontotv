@@ -1,7 +1,7 @@
 {
     "version": "1.4.0",
-    "buildNumber": 15,
-    "buildDate": "2025-12-26T14:15:00-05:00",
-    "downloadUrl": "https://drive.google.com/uc?export=download&id=1-joJv2LvPmZ97ltgRIxPGd7bXFYRNPMN",
+    "buildNumber": 1,
+    "buildDate": "2025-12-29T16:21:54-05:00",
+    "downloadUrl": "https://drive.google.com/uc?export=download\u0026id=1-joJv2LvPmZ97ltgRIxPGd7bXFYRNPMN",
     "releaseNotes": "v1.4.0 - Build 15 🎬\n• Nuevo constructor de playlists visual\n• Mezcla videos e imágenes fácilmente\n• Duraciones configurables para imágenes\n• Orden de reproducción con flechas ↑↓\n• Mejor diagnóstico de conexión\n• Servidor: Railway"
 }
