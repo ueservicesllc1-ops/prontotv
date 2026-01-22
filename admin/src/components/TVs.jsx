@@ -71,13 +71,13 @@ function TVs({ apiUrl }) {
   useEffect(() => {
     fetchTVs()
     fetchVideos()
-    const interval = setInterval(fetchTVs, 5000)
+    const interval = setInterval(fetchTVs, 15000)
     return () => clearInterval(interval)
   }, [])
 
   const fetchTVs = async () => {
     try {
-      const res = await axios.get(`${apiUrl}/tvs`, { timeout: 5000 })
+      const res = await axios.get(`${apiUrl}/tvs`, { timeout: 15000 })
       setTVs(res.data || [])
       setLoading(false)
     } catch (error) {

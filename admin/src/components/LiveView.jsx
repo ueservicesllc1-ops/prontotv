@@ -8,7 +8,7 @@ import './LiveView.css'
 function TVClone({ deviceId, apiUrl, className, playbackState }) {
   const baseUrl = apiUrl.replace('/api', '')
   const clientUrl = `${baseUrl}/client?device_id=${deviceId}&preview=true`
-  
+
   return (
     <iframe
       src={clientUrl}
@@ -37,7 +37,7 @@ function LiveView({ apiUrl }) {
   // Obtener lista de TVs
   const fetchTVs = async () => {
     try {
-      const res = await axios.get(`${apiUrl}/tvs`, { timeout: 5000 })
+      const res = await axios.get(`${apiUrl}/tvs`, { timeout: 15000 })
       const onlineTVs = (res.data || []).filter(tv => tv.status === 'online')
       setTVs(onlineTVs)
       setLoading(false)
@@ -52,7 +52,7 @@ function LiveView({ apiUrl }) {
   useEffect(() => {
     const serverBaseUrl = apiUrl.replace('/api', '')
     console.log('🔌 Conectando WebSocket admin:', serverBaseUrl)
-    
+
     socketRef.current = io(serverBaseUrl, {
       transports: ['websocket', 'polling'],
       reconnection: true,
@@ -63,7 +63,7 @@ function LiveView({ apiUrl }) {
       console.log('✅ WebSocket admin conectado')
       // Registrar como admin
       socketRef.current.emit('admin-connect')
-      
+
       // Solicitar estado actual de todos los TVs
       socketRef.current.emit('request-all-playback-states')
     })
@@ -105,7 +105,7 @@ function LiveView({ apiUrl }) {
       if (socketRef.current && socketRef.current.connected) {
         socketRef.current.emit('request-all-playback-states')
       }
-    }, 5000) // Cada 5 segundos
+    }, 15000) // Cada 15 segundos
 
     return () => clearInterval(interval)
   }, [socketRef.current?.connected])
@@ -126,12 +126,12 @@ function LiveView({ apiUrl }) {
       console.log(`🔄 Actualizando aspect ratio del TV ${tvId} a ${aspectRatio}`)
       const response = await axios.patch(`${apiUrl}/tvs/${tvId}`, { aspect_ratio: aspectRatio })
       console.log('✅ Aspect ratio actualizado:', response.data)
-      
+
       // Actualizar el estado local
-      setTVs(prev => prev.map(tv => 
+      setTVs(prev => prev.map(tv =>
         tv.id === tvId ? { ...tv, aspect_ratio: aspectRatio } : tv
       ))
-      
+
       // También actualizar selectedTV si está seleccionado
       if (selectedTV && selectedTV.id === tvId) {
         setSelectedTV({ ...selectedTV, aspect_ratio: aspectRatio })
@@ -193,7 +193,7 @@ function LiveView({ apiUrl }) {
         <div className="live-view-grid-large">
           {tvs.map(tv => {
             const playbackState = playbackStates[tv.device_id]
-            
+
             return (
               <div
                 key={tv.id}
@@ -201,9 +201,9 @@ function LiveView({ apiUrl }) {
                 onClick={() => handleTVClick(tv)}
               >
                 <div className="thumbnail-header-large">
-                  <h3 style={{ 
-                    fontSize: '18px', 
-                    fontWeight: '700', 
+                  <h3 style={{
+                    fontSize: '18px',
+                    fontWeight: '700',
                     color: 'white',
                     margin: 0,
                     flex: 1
@@ -239,8 +239,8 @@ function LiveView({ apiUrl }) {
                     </span>
                   </div>
                 </div>
-                
-                <div 
+
+                <div
                   className="thumbnail-content-large"
                   style={{
                     aspectRatio: (tv.aspect_ratio || '16:9') === '9:16' ? '9/16' : '16/9',
@@ -255,7 +255,7 @@ function LiveView({ apiUrl }) {
                     playbackState={playbackState}
                   />
                 </div>
-                
+
                 <div className="thumbnail-footer-large">
                   {playbackState ? (
                     <div style={{ fontSize: '12px', color: '#666' }}>
@@ -268,7 +268,7 @@ function LiveView({ apiUrl }) {
                           )}
                         </div>
                       )}
-                      <div style={{ 
+                      <div style={{
                         color: playbackState.isPlaying ? '#10b981' : '#f59e0b',
                         fontSize: '11px',
                         marginTop: '4px'
@@ -311,8 +311,8 @@ function LiveView({ apiUrl }) {
                 ×
               </button>
             </div>
-            
-            <div 
+
+            <div
               className="modal-body"
               style={{
                 display: 'flex',

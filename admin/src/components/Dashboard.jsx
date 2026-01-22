@@ -17,15 +17,15 @@ function Dashboard({ apiUrl }) {
 
   useEffect(() => {
     fetchData()
-    const interval = setInterval(fetchData, 5000) // Actualizar cada 5 segundos
+    const interval = setInterval(fetchData, 15000) // Actualizar cada 15 segundos
     return () => clearInterval(interval)
   }, [])
 
   const fetchData = async () => {
     try {
       // Agregar timeout a las peticiones
-      const timeout = 5000; // 5 segundos
-      
+      const timeout = 15000; // 15 segundos
+
       const [tvsRes, videosRes, schedulesRes] = await Promise.all([
         axios.get(`${apiUrl}/tvs`, { timeout }),
         axios.get(`${apiUrl}/videos`, { timeout }),
@@ -34,7 +34,7 @@ function Dashboard({ apiUrl }) {
 
       const tvs = tvsRes.data || []
       const onlineTVs = tvs.filter(tv => tv.status === 'online')
-      
+
       setStats({
         totalTVs: tvs.length,
         onlineTVs: onlineTVs.length,
@@ -140,9 +140,9 @@ function Dashboard({ apiUrl }) {
                           type="text"
                           value={editName}
                           onChange={(e) => setEditName(e.target.value)}
-                          style={{ 
-                            padding: '4px 8px', 
-                            border: '1px solid #ddd', 
+                          style={{
+                            padding: '4px 8px',
+                            border: '1px solid #ddd',
                             borderRadius: '4px',
                             fontSize: '14px',
                             width: '200px'
@@ -173,9 +173,9 @@ function Dashboard({ apiUrl }) {
                         <span>{tv.name}</span>
                         <button
                           onClick={() => handleEditName(tv)}
-                          style={{ 
-                            background: 'none', 
-                            border: 'none', 
+                          style={{
+                            background: 'none',
+                            border: 'none',
                             cursor: 'pointer',
                             color: '#F58342',
                             fontSize: '14px',

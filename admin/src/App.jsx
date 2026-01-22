@@ -5,7 +5,12 @@ import TVs from './components/TVs'
 import Videos from './components/Videos'
 import Schedules from './components/Schedules'
 import LiveView from './components/LiveView'
-import { FaEye } from 'react-icons/fa'
+import Users from './components/Users'
+import Login from './components/Login'
+import { auth } from './firebase'
+import { onAuthStateChanged, signOut } from 'firebase/auth'
+import { FaEye, FaSignOutAlt, FaUsers } from 'react-icons/fa'
+import { useUserRole } from './hooks/useUserRole'
 
 // Detectar automáticamente la URL del servidor basándose en la URL actual
 function getApiUrl() {
@@ -34,6 +39,36 @@ const API_URL = (function () {
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard')
+  const [user, setUser] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  // Get user role
+  const { role, loading: roleLoading, isAdmin } = useUserRole(user)
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleLogout = () => {
+    signOut(auth);
+  };
+
+  if (loading || roleLoading) {
+    return (
+      <div style={{ height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#1a1a2e', color: 'white' }}>
+        <h2>Cargando...</h2>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login />;
+  }
 
   return (
     <div className="app">
@@ -88,6 +123,24 @@ function App() {
             >
               <FaEye /> Vista en Vivo
             </button>
+
+            {/* Show Users tab only for admins and super admins */}
+            {isAdmin && (
+              <button
+                className={activeTab === 'users' ? 'active' : ''}
+                onClick={() => setActiveTab('users')}
+              >
+                <FaUsers /> Usuarios
+              </button>
+            )}
+
+            <button
+              onClick={handleLogout}
+              style={{ marginLeft: '20px', background: 'rgba(0,0,0,0.2)', border: 'none', color: 'white' }}
+              title="Cerrar Sesión"
+            >
+              <FaSignOutAlt /> Salir
+            </button>
           </nav>
         </div>
       </header>
@@ -98,6 +151,7 @@ function App() {
         {activeTab === 'videos' && <Videos apiUrl={API_URL} />}
         {activeTab === 'schedules' && <Schedules apiUrl={API_URL} />}
         {activeTab === 'liveview' && <LiveView apiUrl={API_URL} />}
+        {activeTab === 'users' && isAdmin && <Users />}
       </main>
     </div>
   )

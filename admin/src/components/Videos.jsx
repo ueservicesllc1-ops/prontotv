@@ -134,7 +134,7 @@ function Videos({ apiUrl }) {
 
     // Verificar que el servidor esté disponible
     try {
-      const healthCheck = await axios.get(`${apiUrl.replace('/api', '')}/api/health`, { timeout: 3000 })
+      const healthCheck = await axios.get(`${apiUrl.replace('/api', '')}/api/health`, { timeout: 15000 })
       console.log('✅ Servidor disponible:', healthCheck.data)
     } catch (error) {
       alert(`❌ El servidor no está disponible.\n\nVerifica que el servidor esté corriendo en ${apiUrl.replace('/api', '')}\n\nError: ${error.message}`)

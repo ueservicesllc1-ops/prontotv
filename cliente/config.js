@@ -18,21 +18,21 @@ function getServerUrl() {
 
 const CONFIG = {
     // URL del servidor API (detectada automáticamente)
-    SERVER_URL: (function() {
+    SERVER_URL: (function () {
         const url = getServerUrl();
         console.log('🌐 URL del servidor detectada:', url);
         return url;
     })(),
-    
+
     // ID único del dispositivo (prioridad: URL > localStorage > generar nuevo)
     DEVICE_ID: urlDeviceId || localStorage.getItem('device_id') || generateDeviceId(),
-    
+
     // Intervalo de sincronización con el servidor (en milisegundos)
-    SYNC_INTERVAL: 60000, // 60 segundos (aumentado para reducir peticiones innecesarias)
-    
+    SYNC_INTERVAL: 30000, // 30 segundos (más frecuente para asegurar estado "En línea")
+
     // Intervalo de verificación de conexión (en milisegundos)
     CONNECTION_CHECK_INTERVAL: 5000, // 5 segundos
-    
+
     // Tiempo de espera antes de mostrar error (en milisegundos)
     ERROR_TIMEOUT: 10000, // 10 segundos
 };

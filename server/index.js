@@ -5,7 +5,7 @@ const multer = require('multer');
 const path = require('path');
 // Cargar variables de entorno desde la raíz del proyecto
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
-const { db, COLLECTIONS, toDate, toTimestamp } = require('./firebase');
+const { db, COLLECTIONS, toDate, toTimestamp, admin } = require('./firebase');
 const { uploadFile, deleteFile, listFiles, getPublicUrl, convertToBunnyCDN } = require('./b2');
 
 
@@ -149,10 +149,179 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// ========== USER MANAGEMENT ENDPOINTS ==========
+
+// Create user with email and password
+app.post('/api/users/create', async (req, res) => {
+  try {
+    const { email, password, role } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    if (!role || (role !== 'admin' && role !== 'editor')) {
+      return res.status(400).json({ error: 'Role must be either "admin" or "editor"' });
+    }
+
+    // Create user in Firebase Authentication
+    const userRecord = await admin.auth().createUser({
+      email: email,
+      password: password,
+      emailVerified: false
+    });
+
+    // Store user role in Firestore
+    await db.collection('users').doc(email).set({
+      email: email,
+      role: role,
+      uid: userRecord.uid,
+      createdAt: toTimestamp(new Date())
+    });
+
+    res.json({
+      success: true,
+      user: {
+        email: email,
+        role: role,
+        uid: userRecord.uid
+      }
+    });
+  } catch (error) {
+    console.error('Error creating user:', error);
+
+    // Handle specific Firebase Auth errors
+    if (error.code === 'auth/email-already-exists') {
+      return res.status(400).json({ error: 'Este correo ya está registrado' });
+    } else if (error.code === 'auth/invalid-email') {
+      return res.status(400).json({ error: 'Correo electrónico inválido' });
+    } else if (error.code === 'auth/weak-password') {
+      return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+    }
+
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete user
+app.delete('/api/users/:email', async (req, res) => {
+  try {
+    const { email } = req.params;
+
+    // Get user from Firestore to get UID
+    const userDoc = await db.collection('users').doc(email).get();
+
+    if (userDoc.exists) {
+      const userData = userDoc.data();
+
+      // Delete from Firebase Authentication if UID exists
+      if (userData.uid) {
+        try {
+          await admin.auth().deleteUser(userData.uid);
+        } catch (authError) {
+          console.error('Error deleting user from Auth:', authError);
+          // Continue anyway to delete from Firestore
+        }
+      }
+
+      // Delete from Firestore
+      await db.collection('users').doc(email).delete();
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update user password
+app.post('/api/update-user-password', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email y contraseña son requeridos' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+    }
+
+    // Get user from Firestore to get UID
+    const userDoc = await db.collection('users').doc(email).get();
+
+    let uid = null;
+    if (userDoc.exists) {
+      const userData = userDoc.data();
+      uid = userData.uid;
+    }
+
+    // If no UID in Firestore, try to get user by email from Firebase Auth
+    if (!uid) {
+      try {
+        const userRecord = await admin.auth().getUserByEmail(email);
+        uid = userRecord.uid;
+
+        // Update Firestore with the UID if it doesn't exist
+        await db.collection('users').doc(email).set({
+          uid: uid
+        }, { merge: true });
+      } catch (authError) {
+        if (authError.code === 'auth/user-not-found') {
+          // User doesn't exist in Firebase Auth, create them
+          const newUser = await admin.auth().createUser({
+            email: email,
+            password: password,
+            emailVerified: false
+          });
+
+          // Update Firestore with UID
+          await db.collection('users').doc(email).set({
+            uid: newUser.uid
+          }, { merge: true });
+
+          return res.json({
+            success: true,
+            message: 'Usuario creado en Firebase Auth y contraseña establecida',
+            uid: newUser.uid
+          });
+        }
+        throw authError;
+      }
+    }
+
+    // Update password in Firebase Authentication
+    await admin.auth().updateUser(uid, {
+      password: password
+    });
+
+    res.json({
+      success: true,
+      message: 'Contraseña actualizada exitosamente',
+      uid: uid
+    });
+  } catch (error) {
+    console.error('Error updating password:', error);
+
+    if (error.code === 'auth/user-not-found') {
+      return res.status(404).json({ error: 'Usuario no encontrado en Firebase Authentication' });
+    } else if (error.code === 'auth/invalid-password') {
+      return res.status(400).json({ error: 'Contraseña inválida' });
+    }
+
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
 // ========== TV ENDPOINTS ==========
 
-// Registrar o actualizar TV
+// Register or update TV
 app.post('/api/tvs/register', async (req, res) => {
+  // Clear cache to reflect new/updated TV
+  cache.clear('all_tvs');
+
   // Timeout de 3 segundos
   const timeout = setTimeout(() => {
     if (!res.headersSent) {
@@ -301,8 +470,25 @@ app.post('/api/tvs/register', async (req, res) => {
 
 // Obtener todas las TVs
 app.get('/api/tvs', async (req, res) => {
-  console.log('[GET /api/tvs] Iniciando consulta de TVs...');
-  console.log('[GET /api/tvs] Firebase inicializado:', !!db);
+  // 1. Intentar servir desde caché
+  const cachedTVs = cache.get('all_tvs');
+  if (cachedTVs) {
+    // Actualizar estados online/offline en tiempo real aunque venga de caché
+    const processedTVs = cachedTVs.map(tv => {
+      if (!tv.last_seen) return { ...tv, status: 'offline' };
+      const lastSeen = new Date(tv.last_seen);
+      const now = new Date();
+      const minutesSinceLastSeen = (now - lastSeen) / (1000 * 60);
+      return {
+        ...tv,
+        status: minutesSinceLastSeen < 3 ? 'online' : 'offline'
+      };
+    });
+    console.log(`[GET /api/tvs] 🟢 Sirviendo ${processedTVs.length} TVs desde memoria`);
+    return res.json(processedTVs);
+  }
+
+  console.log('[GET /api/tvs] 🔵 Consultando Firestore (Cache Miss)...');
 
   // Timeout de 3 segundos
   const timeout = setTimeout(() => {
@@ -313,14 +499,12 @@ app.get('/api/tvs', async (req, res) => {
   }, 3000);
 
   try {
-    console.log('[GET /api/tvs] Consultando Firestore...');
     const snapshot = await Promise.race([
       db.collection(COLLECTIONS.TVS)
         .orderBy('created_at', 'desc')
         .get()
         .catch(err => {
           console.error('[GET /api/tvs] ❌ Error obteniendo TVs:', err);
-          console.error('[GET /api/tvs] Error stack:', err.stack);
           return { docs: [] };
         }),
       new Promise((resolve) => setTimeout(() => resolve({ docs: [] }), 2000))
@@ -332,7 +516,7 @@ app.get('/api/tvs', async (req, res) => {
 
     const tvs = snapshot.docs.map(doc => {
       const data = doc.data();
-      // Calcular status basado en last_seen (3 minutos de margen)
+      // Calcular status y formatear fechas
       const lastSeen = toDate(data.last_seen);
       const now = new Date();
       const minutesSinceLastSeen = lastSeen ? (now - lastSeen) / (1000 * 60) : Infinity;
@@ -347,14 +531,18 @@ app.get('/api/tvs', async (req, res) => {
       };
     });
 
+    // 2. Guardar en caché (TTL 60 segundos)
+    if (snapshot.docs.length > 0) {
+      cache.set('all_tvs', tvs, 60);
+      console.log('[GET /api/tvs] 💾 Almacenado en caché (60s)');
+    }
+
     if (!res.headersSent) {
-      console.log(`[GET /api/tvs] 📤 Enviando ${tvs.length} TVs al cliente`);
       res.json(tvs);
     }
   } catch (error) {
     clearTimeout(timeout);
     console.error('[GET /api/tvs] ❌ Error en catch:', error);
-    console.error('[GET /api/tvs] Error stack:', error.stack);
     if (!res.headersSent) {
       res.json([]);
     }
@@ -363,6 +551,7 @@ app.get('/api/tvs', async (req, res) => {
 
 // Actualizar TV (nombre o aspect_ratio)
 app.patch('/api/tvs/:id', async (req, res) => {
+  cache.clear('all_tvs'); // Invalidate cache
   try {
     const { name, aspect_ratio } = req.body;
 
@@ -420,6 +609,15 @@ app.patch('/api/tvs/:id', async (req, res) => {
 // Obtener TV por ID
 app.get('/api/tvs/:id', async (req, res) => {
   try {
+    // Check main cache first to avoid single read if possible
+    const cachedTVs = cache.get('all_tvs');
+    if (cachedTVs) {
+      const cachedTV = cachedTVs.find(tv => tv.id === req.params.id);
+      if (cachedTV) {
+        return res.json(cachedTV);
+      }
+    }
+
     const doc = await db.collection(COLLECTIONS.TVS).doc(req.params.id).get();
 
     if (!doc.exists) {
@@ -449,6 +647,7 @@ app.get('/api/tvs/:id', async (req, res) => {
 
 // Eliminar TV
 app.delete('/api/tvs/:id', async (req, res) => {
+  cache.clear('all_tvs'); // Invalidate cache
   try {
     await db.collection(COLLECTIONS.TVS).doc(req.params.id).delete();
     res.json({ success: true });
@@ -462,6 +661,7 @@ app.delete('/api/tvs/:id', async (req, res) => {
 
 // Crear video o imagen
 app.post('/api/videos', async (req, res) => {
+  cache.clear('all_videos'); // Invalidate cache
   try {
     const { name, url, duration, type, images, display_mode, interval } = req.body;
 
@@ -522,6 +722,7 @@ app.post('/api/videos', async (req, res) => {
 
 // Actualizar video (PATCH)
 app.patch('/api/videos/:id', async (req, res) => {
+  cache.clear('all_videos'); // Invalidate cache
   try {
     const { id } = req.params;
     const updateData = req.body;
@@ -562,6 +763,13 @@ app.patch('/api/videos/:id', async (req, res) => {
 
 // Obtener todos los videos
 app.get('/api/videos', async (req, res) => {
+  // Check cache
+  const cachedVideos = cache.get('all_videos');
+  if (cachedVideos) {
+    console.log(`[GET /api/videos] 🟢 Sirviendo ${cachedVideos.length} videos desde memoria`);
+    return res.json(cachedVideos);
+  }
+
   try {
     const snapshot = await db.collection(COLLECTIONS.VIDEOS)
       .orderBy('created_at', 'desc')
@@ -600,6 +808,11 @@ app.get('/api/videos', async (req, res) => {
       };
     });
 
+    // Save to cache (60 seconds)
+    if (videos.length > 0) {
+      cache.set('all_videos', videos, 60);
+    }
+
     res.json(videos);
   } catch (error) {
     console.error('Error fetching videos:', error);
@@ -609,6 +822,7 @@ app.get('/api/videos', async (req, res) => {
 
 // Eliminar video
 app.delete('/api/videos/:id', async (req, res) => {
+  cache.clear('all_videos'); // Invalidate cache
   try {
     await db.collection(COLLECTIONS.VIDEOS).doc(req.params.id).delete();
     res.json({ success: true });
@@ -622,6 +836,7 @@ app.delete('/api/videos/:id', async (req, res) => {
 
 // Crear programación
 app.post('/api/schedules', async (req, res) => {
+  cache.clear('all_schedules'); // Invalidate cache
   try {
     const { tv_id, video_id, start_time, end_time, day_of_week, is_active, days, sequence_order, is_loop } = req.body;
 
@@ -729,6 +944,13 @@ app.get('/api/schedules/tv/:tv_id', async (req, res) => {
 
 // Obtener todas las programaciones
 app.get('/api/schedules', async (req, res) => {
+  // Check cache
+  const cachedSchedules = cache.get('all_schedules');
+  if (cachedSchedules) {
+    console.log(`[GET /api/schedules] 🟢 Sirviendo ${cachedSchedules.length} programaciones desde memoria`);
+    return res.json(cachedSchedules);
+  }
+
   try {
     const schedulesSnapshot = await db.collection(COLLECTIONS.SCHEDULES)
       .orderBy('created_at', 'desc')
@@ -737,6 +959,8 @@ app.get('/api/schedules', async (req, res) => {
     const schedules = await Promise.all(schedulesSnapshot.docs.map(async (doc) => {
       const scheduleData = doc.data();
 
+      // OPTIMIZATION: In a real world scenario, fetching TVs and Videos N times is bad.
+      // But for now, we rely on the main cache to avoid hitting this code path too often.
       const [tvDoc, videoDoc] = await Promise.all([
         db.collection(COLLECTIONS.TVS).doc(scheduleData.tv_id).get(),
         db.collection(COLLECTIONS.VIDEOS).doc(scheduleData.video_id).get()
@@ -752,6 +976,11 @@ app.get('/api/schedules', async (req, res) => {
       };
     }));
 
+    // Cache results (60 seconds)
+    if (schedules.length > 0) {
+      cache.set('all_schedules', schedules, 60);
+    }
+
     res.json(schedules);
   } catch (error) {
     console.error('Error fetching schedules:', error);
@@ -761,6 +990,7 @@ app.get('/api/schedules', async (req, res) => {
 
 // Eliminar programación
 app.delete('/api/schedules/:id', async (req, res) => {
+  cache.clear('all_schedules'); // Invalidate cache
   try {
     // Obtener la programación antes de eliminarla para limpiar el caché del TV
     const scheduleDoc = await db.collection(COLLECTIONS.SCHEDULES).doc(req.params.id).get();
@@ -1028,8 +1258,9 @@ app.get('/api/client/playback/:device_id', async (req, res) => {
       return res.json(cachedResult);
     }
 
-    const now = new Date();
-    const currentTime = now.toTimeString().slice(0, 5); // HH:MM
+    // Use America/New_York (Service is in NJ area)
+    const now = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
+    const currentTime = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0'); // HH:MM
     const dayOfWeek = now.getDay(); // 0 = Domingo, 6 = Sábado
 
     // Buscar TV por device_id
@@ -1054,25 +1285,16 @@ app.get('/api/client/playback/:device_id', async (req, res) => {
     const tvId = tvDoc.id;
     const tvData = tvDoc.data();
 
-    // ⚡ Actualizar last_seen solo si ha pasado más de 1 minuto desde la última actualización
-    // Esto reduce las escrituras a Firestore pero mantiene el estado "online" preciso
-    const lastSeen = toDate(tvData.last_seen);
-    const currentDate = new Date();
-    const minutesSinceLastUpdate = lastSeen ? (currentDate - lastSeen) / (1000 * 60) : Infinity;
-
-    // Solo actualizar si ha pasado más de 1 minuto (o si nunca se ha actualizado)
-    if (minutesSinceLastUpdate > 1 || !lastSeen) {
-      await Promise.race([
-        tvDoc.ref.update({
-          status: 'online',
-          last_seen: toTimestamp(new Date())
-        }).catch(err => console.error('Error actualizando TV:', err)),
-        new Promise(resolve => setTimeout(resolve, 1000))
-      ]);
-      console.log(`[Playback] 📝 Actualizado last_seen para TV ${device_id} (${minutesSinceLastUpdate.toFixed(1)} min desde última actualización)`);
-    } else {
-      console.log(`[Playback] ⏭️ Skipped last_seen update para TV ${device_id} (solo ${minutesSinceLastUpdate.toFixed(1)} min desde última actualización)`);
-    }
+    // ⚡ Actualizar last_seen SIEMPRE en cada petición para máxima precisión
+    // Al ser pocos TVs, la prioridad es la precisión del estado "En Linea"
+    await Promise.race([
+      tvDoc.ref.update({
+        status: 'online',
+        last_seen: toTimestamp(new Date())
+      }).catch(err => console.error('Error actualizando TV:', err)),
+      new Promise(resolve => setTimeout(resolve, 1000))
+    ]);
+    console.log(`[Playback] 📝 Actualizado last_seen para TV ${device_id} (Sync inmediato)`);
 
     // Buscar programaciones activas para esta TV
     const schedulesSnapshot = await Promise.race([
@@ -1423,7 +1645,8 @@ app.post('/api/client/play/:device_id', async (req, res) => {
     }
 
     const videoData = videoDoc.data();
-    const currentTime = new Date().toTimeString().slice(0, 5);
+    const now = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
+    const currentTime = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
 
     // Desactivar temporalmente otras programaciones activas para esta TV
     // para que la reproducción inmediata tenga prioridad

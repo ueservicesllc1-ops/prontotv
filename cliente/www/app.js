@@ -432,6 +432,10 @@ function hideAllMedia() {
     elements.randomImagesContainer.classList.add('hidden');
     elements.waitingScreen.classList.add('hidden');
     elements.errorScreen.classList.add('hidden');
+
+    // Restore background color
+    document.body.style.backgroundColor = '#000';
+    document.documentElement.style.backgroundColor = '#000';
 }
 
 // Registrar dispositivo en el servidor
@@ -816,7 +820,7 @@ async function playVideo(content) {
     // --- LOGICA DE CACHÉ OFFLINE ---
     let videoSrc = content.url;
 
-    if (AppState.isAPKMode && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.VideoCache) {
+    if (CONFIG.USE_VIDEO_CACHE && AppState.isAPKMode && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.VideoCache) {
         console.log('📦 Modo APK detectado: Iniciando lógica de caché...');
         try {
             // Mostrar mensaje solo si la descarga puede tardar (no sabemos si está en caché aún)
@@ -841,6 +845,9 @@ async function playVideo(content) {
 
     // Establecer src del video
     elements.videoPlayer.src = videoSrc;
+    // Guardar si estamos usando cache para poder hacer fallback
+    elements.videoPlayer.dataset.usingCache = (videoSrc !== content.url) ? 'true' : 'false';
+    elements.videoPlayer.dataset.originalUrl = content.url;
 
     // Mostrar botón de activar audio si es reproducción directa
     if (content.allowAudio) {
@@ -1063,7 +1070,41 @@ async function playVideo(content) {
                 min-height: 100vh !important;
                 margin: 0 !important;
                 padding: 0 !important;
+                background-color: #000 !important; /* Ensure black background for container */
             `;
+
+            elements.videoPlayer.style.cssText = `
+                display: block !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+                z-index: 51 !important;
+                width: 100vw !important;
+                height: 100vh !important;
+                min-width: 100vw !important;
+                min-height: 100vh !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                background-color: transparent !important; /* Allow video to show through */
+                transform: translateZ(0); /* Force hardware composition */
+            `;
+
+            // FIX: Set explicit attributes for width/height
+            elements.videoPlayer.setAttribute('width', window.innerWidth);
+            elements.videoPlayer.setAttribute('height', window.innerHeight);
+            elements.videoPlayer.setAttribute('playsinline', 'true');
+            elements.videoPlayer.setAttribute('webkit-playsinline', 'true');
+
+            // FIX: Try to force transparent background on body to prevent it from covering the video surface (common Android issue)
+            document.body.style.backgroundColor = 'transparent';
+            document.documentElement.style.backgroundColor = 'transparent';
+
+            // MIX: Force a layout redraw after a short delay
+            setTimeout(() => {
+                elements.videoPlayer.style.display = 'none';
+                elements.videoPlayer.offsetHeight; // Trigger reflow
+                elements.videoPlayer.style.display = 'block';
+                console.log('🔄 Forced video layout redraw');
+            }, 500);
 
             console.log('📺 Verificando visibilidad:', {
                 containerDisplay: window.getComputedStyle(elements.videoContainer).display,
@@ -1153,6 +1194,18 @@ async function playVideo(content) {
 
     elements.videoPlayer.onerror = (e) => {
         console.error('❌ Error en el video:', e);
+
+        // --- FALLBACK AUTOMÁTICO DE CACHE ---
+        if (elements.videoPlayer.dataset.usingCache === 'true') {
+            console.warn('⚠️ Error reproduciendo desde caché local. Intentando fallback a streaming directo...');
+            // Desactivar flag para no entrar en bucle infinito
+            elements.videoPlayer.dataset.usingCache = 'false';
+            // Usar URL original (streaming)
+            elements.videoPlayer.src = elements.videoPlayer.dataset.originalUrl;
+            elements.videoPlayer.load();
+            elements.videoPlayer.play().catch(err => console.error('Error en fallback:', err));
+            return; // Detener aquí, no mostrar error todavía
+        }
         console.error('Error code:', elements.videoPlayer.error);
         if (elements.videoPlayer.error) {
             console.error('Error details:', {
