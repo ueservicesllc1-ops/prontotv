@@ -7,10 +7,7 @@ import Schedules from './components/Schedules'
 import LiveView from './components/LiveView'
 import Users from './components/Users'
 import Login from './components/Login'
-import { auth } from './firebase'
-import { onAuthStateChanged, signOut } from 'firebase/auth'
-import { FaEye, FaSignOutAlt, FaUsers } from 'react-icons/fa'
-import { useUserRole } from './hooks/useUserRole'
+import { FaEye, FaUsers, FaSignOutAlt } from 'react-icons/fa'
 
 // Detectar automáticamente la URL del servidor basándose en la URL actual
 function getApiUrl() {
@@ -42,32 +39,43 @@ function App() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  // Get user role
-  const { role, loading: roleLoading, isAdmin } = useUserRole(user)
-
+  // Verificar sesión al cargar
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setLoading(false);
-    });
+    const savedUser = localStorage.getItem('prontotvUser')
+    if (savedUser) {
+      try {
+        setUser(JSON.parse(savedUser))
+      } catch (e) {
+        console.error('Error parsing saved user:', e)
+        localStorage.removeItem('prontotvUser')
+      }
+    }
+    setLoading(false)
+  }, [])
 
-    return () => unsubscribe();
-  }, []);
+  const handleLogin = (userData) => {
+    setUser(userData)
+  }
 
   const handleLogout = () => {
-    signOut(auth);
-  };
+    localStorage.removeItem('prontotvUser')
+    setUser(null)
+    setActiveTab('dashboard')
+  }
 
-  if (loading || roleLoading) {
+  // Verificar si el usuario es admin o super admin
+  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin'
+
+  if (loading) {
     return (
       <div style={{ height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#1a1a2e', color: 'white' }}>
         <h2>Cargando...</h2>
       </div>
-    );
+    )
   }
 
   if (!user) {
-    return <Login />;
+    return <Login onLogin={handleLogin} />
   }
 
   return (
@@ -91,6 +99,42 @@ function App() {
             />
             <h1 style={{ margin: 0 }}>ProntoTV Admin</h1>
           </div>
+
+          {/* Usuario logueado */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            padding: '8px 16px',
+            background: 'rgba(255, 255, 255, 0.2)',
+            borderRadius: '8px',
+            marginLeft: 'auto',
+            marginRight: '20px'
+          }}>
+            <span style={{
+              fontSize: '20px'
+            }}>
+              {user.role === 'superadmin' ? '👑' : user.role === 'admin' ? '🛡️' : '✏️'}
+            </span>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+              <span style={{
+                color: 'white',
+                fontWeight: 'bold',
+                fontSize: '14px'
+              }}>
+                {user.name || user.username}
+              </span>
+              <span style={{
+                color: 'rgba(255, 255, 255, 0.8)',
+                fontSize: '11px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px'
+              }}>
+                {user.role === 'superadmin' ? 'Super Admin' : user.role === 'admin' ? 'Administrador' : 'Editor'}
+              </span>
+            </div>
+          </div>
+
           <nav className="nav-tabs">
             <button
               className={activeTab === 'dashboard' ? 'active' : ''}
@@ -116,7 +160,6 @@ function App() {
             >
               Programación
             </button>
-            {/* Playlists button removed as it's integrated in Schedules */}
             <button
               className={activeTab === 'liveview' ? 'active' : ''}
               onClick={() => setActiveTab('liveview')}
@@ -124,7 +167,7 @@ function App() {
               <FaEye /> Vista en Vivo
             </button>
 
-            {/* Show Users tab only for admins and super admins */}
+            {/* Solo mostrar Usuarios para admins y super admins */}
             {isAdmin && (
               <button
                 className={activeTab === 'users' ? 'active' : ''}
@@ -137,7 +180,7 @@ function App() {
             <button
               onClick={handleLogout}
               style={{ marginLeft: '20px', background: 'rgba(0,0,0,0.2)', border: 'none', color: 'white' }}
-              title="Cerrar Sesión"
+              title={`Cerrar Sesión (${user.name || user.username})`}
             >
               <FaSignOutAlt /> Salir
             </button>
@@ -151,7 +194,7 @@ function App() {
         {activeTab === 'videos' && <Videos apiUrl={API_URL} />}
         {activeTab === 'schedules' && <Schedules apiUrl={API_URL} />}
         {activeTab === 'liveview' && <LiveView apiUrl={API_URL} />}
-        {activeTab === 'users' && isAdmin && <Users />}
+        {activeTab === 'users' && isAdmin && <Users currentUser={user} />}
       </main>
     </div>
   )

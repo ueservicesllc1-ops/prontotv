@@ -1,55 +1,73 @@
 import React, { useState } from 'react';
-import {
-    signInWithPopup,
-    GoogleAuthProvider,
-    signInWithEmailAndPassword,
-    createUserWithEmailAndPassword
-} from 'firebase/auth';
-import { auth } from '../firebase';
-import './Login.css'; // We will create this CSS file next
+import { db } from '../firebase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import './Login.css';
 
-const Login = () => {
-    const [isLogin, setIsLogin] = useState(true);
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
+const Login = ({ onLogin }) => {
+    const [username, setUsername] = useState('');
+    const [pin, setPin] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
-    const googleProvider = new GoogleAuthProvider();
-
-    const handleGoogleLogin = async () => {
-        setLoading(true);
-        setError('');
-        try {
-            await signInWithPopup(auth, googleProvider);
-        } catch (err) {
-            setError(err.message);
-        } finally {
-            setLoading(false);
-        }
+    // Super Admin hardcodeado
+    const SUPER_ADMIN = {
+        username: 'luisuf',
+        pin: '1619',
+        role: 'superadmin',
+        name: 'Luis (Super Admin)'
     };
 
-    const handleEmailLogin = async (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        setLoading(true);
         setError('');
+        setLoading(true);
+
         try {
-            if (isLogin) {
-                await signInWithEmailAndPassword(auth, email, password);
-            } else {
-                await createUserWithEmailAndPassword(auth, email, password);
+            // Verificar si es el super admin
+            if (username.toLowerCase() === SUPER_ADMIN.username && pin === SUPER_ADMIN.pin) {
+                const user = {
+                    username: SUPER_ADMIN.username,
+                    role: SUPER_ADMIN.role,
+                    name: SUPER_ADMIN.name
+                };
+                localStorage.setItem('prontotvUser', JSON.stringify(user));
+                onLogin(user);
+                return;
             }
+
+            // Buscar usuario en Firestore
+            const usersRef = collection(db, 'adminUsers');
+            const q = query(usersRef, where('username', '==', username.toLowerCase()));
+            const querySnapshot = await getDocs(q);
+
+            if (querySnapshot.empty) {
+                setError('❌ Usuario no encontrado');
+                setLoading(false);
+                return;
+            }
+
+            const userData = querySnapshot.docs[0].data();
+
+            // Verificar PIN (comparación simple - en producción se debería hashear)
+            if (userData.pin !== pin) {
+                setError('❌ PIN incorrecto');
+                setLoading(false);
+                return;
+            }
+
+            // Login exitoso
+            const user = {
+                username: userData.username,
+                role: userData.role,
+                name: userData.name || userData.username
+            };
+
+            localStorage.setItem('prontotvUser', JSON.stringify(user));
+            onLogin(user);
+
         } catch (err) {
-            if (err.code === 'auth/email-already-in-use') {
-                setError('Este correo ya está registrado. Intenta iniciar sesión.');
-            } else if (err.code === 'auth/wrong-password') {
-                setError('Contraseña incorrecta.');
-            } else if (err.code === 'auth/user-not-found') {
-                setError('Usuario no encontrado.');
-            } else {
-                setError(err.message);
-            }
-        } finally {
+            console.error('Error en login:', err);
+            setError('❌ Error al iniciar sesión');
             setLoading(false);
         }
     };
@@ -58,63 +76,50 @@ const Login = () => {
         <div className="login-container">
             <div className="login-card">
                 <div className="login-header">
-                    <img src="/logo.png" alt="ProntoTV" className="login-logo" onError={(e) => e.target.style.display = 'none'} />
-                    <h2>{isLogin ? 'Iniciar Sesión' : 'Registrarse'}</h2>
-                    <p>Bienvenido al Panel de Administración de ProntoTV</p>
+                    <img src="/logo.png" alt="ProntoTV" className="login-logo" />
+                    <h1>ProntoTV Admin</h1>
+                    <p>Iniciar Sesión</p>
                 </div>
 
-                {error && <div className="login-error">{error}</div>}
+                <form onSubmit={handleSubmit} className="login-form">
+                    {error && <div className="error-message">{error}</div>}
 
-                <form onSubmit={handleEmailLogin} className="login-form">
                     <div className="form-group">
-                        <label>Correo Electrónico</label>
+                        <label>Usuario</label>
                         <input
-                            type="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            placeholder="admin@prontotv.com"
+                            type="text"
+                            value={username}
+                            onChange={(e) => setUsername(e.target.value)}
+                            placeholder="Ingresa tu usuario"
                             required
+                            autoComplete="username"
+                            disabled={loading}
                         />
                     </div>
+
                     <div className="form-group">
-                        <label>Contraseña</label>
+                        <label>PIN</label>
                         <input
                             type="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            placeholder="••••••••"
+                            value={pin}
+                            onChange={(e) => setPin(e.target.value)}
+                            placeholder="Ingresa tu PIN"
                             required
+                            maxLength={6}
+                            pattern="[0-9]*"
+                            inputMode="numeric"
+                            autoComplete="off"
+                            disabled={loading}
                         />
                     </div>
 
-                    <button type="submit" className="btn-primary" disabled={loading}>
-                        {loading ? 'Procesando...' : (isLogin ? 'Ingresar' : 'Registrarse')}
+                    <button type="submit" className="login-button" disabled={loading}>
+                        {loading ? 'Verificando...' : 'Ingresar'}
                     </button>
                 </form>
 
-                <div className="divider">
-                    <span>O continuar con</span>
-                </div>
-
-                <button
-                    onClick={handleGoogleLogin}
-                    className="btn-google"
-                    disabled={loading}
-                >
-                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" />
-                    Google
-                </button>
-
                 <div className="login-footer">
-                    <p>
-                        {isLogin ? '¿No tienes cuenta?' : '¿Ya tienes cuenta?'}
-                        <button
-                            className="btn-link"
-                            onClick={() => setIsLogin(!isLogin)}
-                        >
-                            {isLogin ? 'Regístrate' : 'Inicia Sesión'}
-                        </button>
-                    </p>
+                    <p>🔐 Acceso seguro con PIN</p>
                 </div>
             </div>
         </div>

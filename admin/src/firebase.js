@@ -24,9 +24,5 @@ if (typeof window !== 'undefined') {
   analytics = getAnalytics(app);
 }
 
-// Initialize Auth
-import { getAuth } from "firebase/auth";
-const auth = getAuth(app);
-
-export { db, analytics, app, auth };
+export { db, analytics, app };
 
