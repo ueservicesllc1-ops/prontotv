@@ -763,11 +763,67 @@ app.patch('/api/videos/:id', async (req, res) => {
 
 // Obtener todos los videos
 app.get('/api/videos', async (req, res) => {
+  // Logica para corregir URLs (migración)
+  const fixVideoUrl = (vUrl) => {
+    if (!process.env.USE_BUNNY_CDN === 'true' || !process.env.BUNNY_CDN_URL) return vUrl;
+
+    let targetCdnUrl = process.env.BUNNY_CDN_URL.replace(/\/$/, '');
+
+    // HOTFIX: Si la variable de entorno tiene el dominio viejo, forzar el nuevo
+    if (targetCdnUrl.includes('prontotv-cdn.b-cdn.net')) {
+      targetCdnUrl = 'https://prontotv2.b-cdn.net';
+    }
+
+    if (vUrl && (vUrl.includes('backblazeb2.com') || vUrl.startsWith('/'))) {
+      if (vUrl.startsWith('/')) {
+        vUrl = `https://s3.us-east-005.backblazeb2.com${vUrl}`;
+      }
+      const converted = convertToBunnyCDN(vUrl);
+      // Asegurar que use el targetCdnUrl correcto si convertToBunnyCDN usó el env var viejo
+      if (converted.includes('prontotv-cdn.b-cdn.net')) {
+        return converted.replace('prontotv-cdn.b-cdn.net', 'prontotv2.b-cdn.net');
+      }
+      return converted;
+    } else if (vUrl && vUrl.includes('b-cdn.net')) {
+      try {
+        const currentUrlObj = new URL(targetCdnUrl);
+        const videoUrlObj = new URL(vUrl);
+
+        if (videoUrlObj.hostname !== currentUrlObj.hostname) {
+          const oldHostname = videoUrlObj.hostname;
+          return vUrl.replace(oldHostname, currentUrlObj.hostname);
+        }
+      } catch (e) { console.warn('Error fixing URL:', e); }
+    }
+    return vUrl;
+  };
+
+  // Helper para procesar un item de video
+  const processVideoItem = (videoItem) => {
+    let videoUrl = videoItem.url;
+
+    // Aplicar corrección/migración de URL
+    videoUrl = fixVideoUrl(videoUrl);
+
+    const hasBunnyUrl = videoUrl && videoUrl.includes('b-cdn.net');
+    const bunnyUrl = hasBunnyUrl ? videoUrl : (videoItem.bunnyUrl || null);
+    const b2Url = videoItem.b2Url || videoItem.originalUrl || videoItem.url;
+
+    return {
+      ...videoItem,
+      url: videoUrl,
+      bunnyUrl: bunnyUrl,
+      b2Url: b2Url
+    };
+  };
+
   // Check cache
   const cachedVideos = cache.get('all_videos');
   if (cachedVideos) {
-    console.log(`[GET /api/videos] 🟢 Sirviendo ${cachedVideos.length} videos desde memoria`);
-    return res.json(cachedVideos);
+    console.log(`[GET /api/videos] 🟢 Sirviendo ${cachedVideos.length} videos desde memoria (con verificación de URL)`);
+    // Aplicar fix también a los cacheados por si acaso
+    const fixedCachedVideos = cachedVideos.map(processVideoItem);
+    return res.json(fixedCachedVideos);
   }
 
   try {
@@ -775,67 +831,20 @@ app.get('/api/videos', async (req, res) => {
       .orderBy('created_at', 'desc')
       .get();
 
-    const videos = snapshot.docs.map(doc => {
-      const videoData = doc.data();
+    const videoData = doc.data();
+    return processVideoItem({ id: doc.id, ...videoData });
+  });
 
-      // Convertir URL a Bunny CDN si está configurado y la URL es de B2
-      let videoUrl = videoData.url;
-      if (process.env.USE_BUNNY_CDN === 'true' && process.env.BUNNY_CDN_URL) {
-        // Si la URL es de B2 o es relativa, convertirla
-        if (videoUrl && (videoUrl.includes('backblazeb2.com') || videoUrl.startsWith('/'))) {
-          // Si es relativa, construir la URL completa de B2 primero
-          if (videoUrl.startsWith('/')) {
-            videoUrl = `https://s3.us-east-005.backblazeb2.com${videoUrl}`;
-          }
-          videoUrl = convertToBunnyCDN(videoUrl);
-        } else if (videoUrl && videoUrl.includes('b-cdn.net')) {
-          // Si ya es Bunny CDN, verificar que use el dominio actual
-          try {
-            const currentCdnUrl = process.env.BUNNY_CDN_URL.replace(/\/$/, '');
-            // Extraer hostnames para comparar
-            // Usamos una URL base dummy para el currentCdnUrl si no tiene protocolo, aunque debería tenerlo
-            const currentUrlObj = new URL(currentCdnUrl);
-            const videoUrlObj = new URL(videoUrl);
+// Save to cache (60 seconds)
+if (videos.length > 0) {
+  cache.set('all_videos', videos, 60);
+}
 
-            if (videoUrlObj.hostname !== currentUrlObj.hostname) {
-              // Reemplazar el hostname viejo con el nuevo
-              const oldHostname = videoUrlObj.hostname;
-              videoUrl = videoUrl.replace(oldHostname, currentUrlObj.hostname);
-              // console.log(`[GET /api/videos] 🔄 URL migrada dynamicamente: ${oldHostname} -> ${currentUrlObj.hostname}`);
-            }
-          } catch (e) {
-            console.warn('[GET /api/videos] Error migrando URL:', e);
-          }
-        }
-      }
-
-      // Determinar si tiene URL de Bunny CDN
-      const hasBunnyUrl = videoUrl && videoUrl.includes('b-cdn.net');
-      const bunnyUrl = hasBunnyUrl ? videoUrl : (videoData.bunnyUrl || null);
-      const b2Url = videoData.b2Url || videoData.originalUrl || videoData.url;
-
-      return {
-        id: doc.id,
-        ...videoData,
-        url: videoUrl, // URL final (Bunny CDN si está configurado, B2 si no)
-        bunnyUrl: bunnyUrl, // URL de Bunny CDN explícita
-        b2Url: b2Url, // URL original de B2
-        originalUrl: videoData.originalUrl || videoData.url, // URL original para referencia
-        duration: videoData.duration || null, // Asegurar que duration esté presente (puede ser 0, null o undefined)
-        created_at: toDate(videoData.created_at)?.toISOString()
-      };
-    });
-
-    // Save to cache (60 seconds)
-    if (videos.length > 0) {
-      cache.set('all_videos', videos, 60);
-    }
-
-    res.json(videos);
+res.json(videos);
   } catch (error) {
-    console.error('Error fetching videos:', error);
-    res.status(500).json({ error: error.message });
-  }
+  console.error('Error fetching videos:', error);
+  res.status(500).json({ error: error.message });
+}
 });
 
 // Eliminar video
