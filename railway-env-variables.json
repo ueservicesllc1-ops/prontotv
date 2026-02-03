@@ -7,8 +7,7 @@
   "B2_APPLICATION_KEY": "TU_B2_APPLICATION_KEY",
   "B2_BUCKET_NAME": "mixercur",
   "USE_BUNNY_CDN": "true",
-  "BUNNY_CDN_URL": "https://prontotv-cdn.b-cdn.net",
+  "BUNNY_CDN_URL": "https://prontotv2.b-cdn.net",
   "DOMAIN": "prontoenvios.click",
   "ALLOWED_ORIGINS": "https://prontoenvios.click,https://www.prontoenvios.click,http://localhost:3000,http://localhost:5173"
 }
-

@@ -41,7 +41,124 @@ const AppState = {
     socket: null, // WebSocket connection
     playbackUpdateInterval: null, // Intervalo para enviar actualizaciones de reproducción
     previewInterval: null, // Intervalo para modo preview
-    previewRetryTimeout: null // Timeout para reintentos en preview sin contenido
+    previewRetryTimeout: null, // Timeout para reintentos en preview sin contenido
+    downloadQueue: [] // Queue for video downloads
+};
+
+/**
+ * Sistema de Caché de Video
+ * Descarga videos en segundo plano y sirve desde local
+ */
+const VideoCache = {
+    // Directorio de almacenamiento (DATA para persistencia)
+    directory: 'DATA', // Se mapea a Directory.Data
+
+    // Obtener URL (Local si existe, Remota si no - e inicia descarga)
+    async getOrDownload(url) {
+        if (!isAPK()) return url; // Solo en App Nativa
+        if (!url || url.startsWith('file:') || url.startsWith('capacitor:') || url.startsWith('blob:')) return url;
+
+        const fileName = this.getFileName(url);
+
+        try {
+            // Verificar si tenemos acceso a los plugins
+            if (!window.Capacitor?.Plugins?.Filesystem) {
+                console.warn('⚠️ Plugin Filesystem no disponible');
+                return url;
+            }
+
+            const { Filesystem } = window.Capacitor.Plugins;
+
+            try {
+                // Instentamos leer las estadísticas del archivo
+                const stat = await Filesystem.stat({
+                    path: fileName,
+                    directory: this.directory
+                });
+
+                console.log('✅ Video encontrado en caché:', fileName, stat.uri);
+                return stat.uri; // Devolver URI local
+            } catch (e) {
+                // No existe, iniciar descarga en segundo plano
+                console.log('⬇️ Video no en caché, iniciando descarga en segundo plano:', fileName);
+                this.downloadInBackground(url, fileName);
+                return url; // Devolver URL remota por ahora
+            }
+        } catch (error) {
+            console.error('❌ Error en VideoCache:', error);
+            return url;
+        }
+    },
+
+    // Descargar en segundo plano
+    async downloadInBackground(url, fileName) {
+        // Evitar descargar el mismo archivo múltiples veces simultáneamente
+        if (AppState.downloadQueue.includes(fileName)) return;
+
+        try {
+            AppState.downloadQueue.push(fileName);
+            const { CapacitorHttp, Filesystem } = window.Capacitor.Plugins;
+
+            if (!CapacitorHttp) {
+                console.error('❌ CapacitorHttp no disponible para descarga');
+                return;
+            }
+
+            console.log('⏳ Iniciando descarga real:', url);
+
+            // Usar CapacitorHttp para descargar directamente al archivo
+            // Esto es más eficiente para archivos grandes
+            await CapacitorHttp.download({
+                url: url,
+                filePath: fileName,
+                fileDirectory: this.directory,
+                method: 'GET'
+            });
+
+            console.log('✨ Descarga completada:', fileName);
+
+            // Verificar que se guardó
+            const stat = await Filesystem.stat({
+                path: fileName,
+                directory: this.directory
+            });
+            console.log('📁 Archivo guardado en:', stat.uri);
+
+        } catch (error) {
+            console.error('❌ Error descargando video:', error);
+        } finally {
+            // Remover de la cola
+            AppState.downloadQueue = AppState.downloadQueue.filter(f => f !== fileName);
+        }
+    },
+
+    // Generar nombre de archivo único basado en la URL
+    getFileName(url) {
+        try {
+            // Usar el nombre del archivo de la URL si es posible
+            const urlObj = new URL(url);
+            let name = urlObj.pathname.split('/').pop();
+            // Si no tiene extensión o nombre raro, usar hash simple
+            if (!name || name.length < 3 || !name.includes('.')) {
+                name = 'video_' + this.hashCode(url) + '.mp4';
+            }
+            // Decodificar URI components
+            return decodeURIComponent(name);
+        } catch (e) {
+            return 'video_' + Date.now() + '.mp4';
+        }
+    },
+
+    // Simple hash function for strings
+    hashCode(str) {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = (hash << 5) - hash + char;
+            hash |= 0;
+        }
+        return Math.abs(hash);
+    }
 };
 
 // Elementos del DOM
@@ -695,7 +812,17 @@ async function playVideo(content) {
         return;
     }
 
-    console.log('📹 Estableciendo src del video:', content.url);
+    // Gestionar caché de video
+    let finalUrl = content.url;
+    try {
+        finalUrl = await VideoCache.getOrDownload(content.url);
+        console.log('📹 URL Final de reproducción:', finalUrl);
+    } catch (e) {
+        console.error('Error resolviendo caché:', e);
+    }
+
+    console.log('📹 Estableciendo src del video:', finalUrl);
+    elements.videoPlayer.src = finalUrl;
 
     // Verificar si el botón existe
     const unmuteBtn = document.getElementById('audio-unmute-btn');
@@ -1733,148 +1860,155 @@ function playNextInSequence() {
     elements.videoPlayer.removeAttribute('loop');
     elements.videoPlayer.loop = false;
 
-    elements.videoPlayer.src = video.url;
+    // Gestionar caché para secuencia
+    VideoCache.getOrDownload(video.url).then(finalUrl => {
+        elements.videoPlayer.src = finalUrl;
+        continuePlaybackLogic();
+    });
 
-    // En modo preview, establecer el tiempo correcto cuando se carguen los metadatos
-    if (AppState.isPreviewMode && AppState.sequenceTimeOffset !== undefined && AppState.sequenceTimeOffset > 0) {
-        const timeOffset = AppState.sequenceTimeOffset;
-        AppState.sequenceTimeOffset = 0; // Resetear para que solo se aplique una vez
+    function continuePlaybackLogic() {
 
-        console.log('⏱️ Preparando para establecer tiempo del video:', timeOffset, 'segundos');
+        // En modo preview, establecer el tiempo correcto cuando se carguen los metadatos
+        if (AppState.isPreviewMode && AppState.sequenceTimeOffset !== undefined && AppState.sequenceTimeOffset > 0) {
+            const timeOffset = AppState.sequenceTimeOffset;
+            AppState.sequenceTimeOffset = 0; // Resetear para que solo se aplique una vez
 
-        // Establecer tiempo cuando se carguen los metadatos
-        const setTimeOnLoad = () => {
-            const videoDuration = elements.videoPlayer.duration;
-            console.log('⏱️ Metadatos cargados - Duración:', videoDuration, 'Tiempo objetivo:', timeOffset);
+            console.log('⏱️ Preparando para establecer tiempo del video:', timeOffset, 'segundos');
 
-            if (videoDuration && videoDuration > 0 && !isNaN(videoDuration) && isFinite(videoDuration)) {
-                // Si el tiempo objetivo es mayor que la duración, este video ya terminó
-                // y deberíamos estar en el siguiente video
-                if (timeOffset >= videoDuration) {
-                    console.log(`⏱️ El tiempo objetivo (${timeOffset}s) es mayor o igual a la duración (${videoDuration}s). Este video ya terminó.`);
+            // Establecer tiempo cuando se carguen los metadatos
+            const setTimeOnLoad = () => {
+                const videoDuration = elements.videoPlayer.duration;
+                console.log('⏱️ Metadatos cargados - Duración:', videoDuration, 'Tiempo objetivo:', timeOffset);
 
-                    // Actualizar la duración del video en el array para futuros cálculos
-                    const currentVideo = AppState.sequenceVideos[AppState.sequenceIndex];
-                    if (currentVideo) {
-                        currentVideo.duration = videoDuration;
-                        console.log(`📝 Duración del video ${AppState.sequenceIndex + 1} actualizada: ${videoDuration}s`);
-                    }
+                if (videoDuration && videoDuration > 0 && !isNaN(videoDuration) && isFinite(videoDuration)) {
+                    // Si el tiempo objetivo es mayor que la duración, este video ya terminó
+                    // y deberíamos estar en el siguiente video
+                    if (timeOffset >= videoDuration) {
+                        console.log(`⏱️ El tiempo objetivo (${timeOffset}s) es mayor o igual a la duración (${videoDuration}s). Este video ya terminó.`);
 
-                    // Recalcular: restar la duración del tiempo total y pasar al siguiente video
-                    const remainingTime = timeOffset - videoDuration;
-                    console.log(`⏱️ Tiempo restante después del video ${AppState.sequenceIndex + 1}: ${remainingTime}s`);
+                        // Actualizar la duración del video en el array para futuros cálculos
+                        const currentVideo = AppState.sequenceVideos[AppState.sequenceIndex];
+                        if (currentVideo) {
+                            currentVideo.duration = videoDuration;
+                            console.log(`📝 Duración del video ${AppState.sequenceIndex + 1} actualizada: ${videoDuration}s`);
+                        }
 
-                    // Si hay más videos, pasar al siguiente con el tiempo restante
-                    if (AppState.sequenceIndex + 1 < AppState.sequenceVideos.length) {
-                        AppState.sequenceIndex++;
-                        AppState.sequenceTimeOffset = remainingTime;
-                        console.log(`▶️ Pasando al video ${AppState.sequenceIndex + 1} con tiempo: ${remainingTime}s`);
-                        // Recargar el siguiente video
-                        playNextInSequence();
-                        return; // Salir para no establecer tiempo en este video
+                        // Recalcular: restar la duración del tiempo total y pasar al siguiente video
+                        const remainingTime = timeOffset - videoDuration;
+                        console.log(`⏱️ Tiempo restante después del video ${AppState.sequenceIndex + 1}: ${remainingTime}s`);
+
+                        // Si hay más videos, pasar al siguiente con el tiempo restante
+                        if (AppState.sequenceIndex + 1 < AppState.sequenceVideos.length) {
+                            AppState.sequenceIndex++;
+                            AppState.sequenceTimeOffset = remainingTime;
+                            console.log(`▶️ Pasando al video ${AppState.sequenceIndex + 1} con tiempo: ${remainingTime}s`);
+                            // Recargar el siguiente video
+                            playNextInSequence();
+                            return; // Salir para no establecer tiempo en este video
+                        } else {
+                            // No hay más videos, establecer al final para que termine
+                            elements.videoPlayer.currentTime = videoDuration - 0.1;
+                            setTimeout(() => {
+                                if (!elements.videoPlayer.ended) {
+                                    elements.videoPlayer.currentTime = videoDuration;
+                                }
+                            }, 100);
+                        }
                     } else {
-                        // No hay más videos, establecer al final para que termine
-                        elements.videoPlayer.currentTime = videoDuration - 0.1;
+                        // El tiempo está dentro de este video, establecerlo normalmente
+                        elements.videoPlayer.currentTime = timeOffset;
+                        console.log('⏱️ ✅ Tiempo establecido en secuencia:', timeOffset, 'segundos (duración:', videoDuration, ')');
+
+                        // Verificar que se estableció correctamente
                         setTimeout(() => {
-                            if (!elements.videoPlayer.ended) {
-                                elements.videoPlayer.currentTime = videoDuration;
-                            }
+                            console.log('⏱️ Verificación - currentTime actual:', elements.videoPlayer.currentTime);
                         }, 100);
                     }
                 } else {
-                    // El tiempo está dentro de este video, establecerlo normalmente
-                    elements.videoPlayer.currentTime = timeOffset;
-                    console.log('⏱️ ✅ Tiempo establecido en secuencia:', timeOffset, 'segundos (duración:', videoDuration, ')');
-
-                    // Verificar que se estableció correctamente
-                    setTimeout(() => {
-                        console.log('⏱️ Verificación - currentTime actual:', elements.videoPlayer.currentTime);
-                    }, 100);
+                    console.warn('⚠️ No se pudo establecer tiempo: duración inválida', videoDuration);
                 }
+            };
+
+            // Intentar establecer inmediatamente si ya hay metadatos
+            if (elements.videoPlayer.readyState >= 1) { // HAVE_METADATA
+                setTimeOnLoad();
             } else {
-                console.warn('⚠️ No se pudo establecer tiempo: duración inválida', videoDuration);
+                // Esperar a que se carguen los metadatos
+                elements.videoPlayer.addEventListener('loadedmetadata', setTimeOnLoad, { once: true });
+                // También intentar en canplay por si acaso
+                elements.videoPlayer.addEventListener('canplay', setTimeOnLoad, { once: true });
+            }
+        }
+
+        elements.videoPlayer.play().catch(error => {
+            console.error('❌ Error al reproducir video en secuencia:', error);
+            // Intentar siguiente video
+            AppState.sequenceIndex++;
+            playNextInSequence();
+        });
+
+        AppState.isPlaying = true;
+
+        // Limpiar event listeners anteriores
+        elements.videoPlayer.onended = null;
+        elements.videoPlayer.onerror = null;
+
+        elements.videoPlayer.onended = () => {
+            console.log(`⏹️ Video ${AppState.sequenceIndex + 1} terminado`);
+            AppState.sequenceIndex++;
+
+            // Verificar si hay más videos en la secuencia
+            if (AppState.sequenceIndex < AppState.sequenceVideos.length) {
+                // Hay más videos, continuar con el siguiente
+                console.log(`▶️ Continuando con siguiente video (${AppState.sequenceIndex + 1}/${AppState.sequenceVideos.length})`);
+                playNextInSequence();
+            } else {
+                // No hay más videos
+                // IMPORTANTE: Verificar explícitamente que loop sea true
+                if (AppState.currentContent && AppState.currentContent.loop === true) {
+                    // Si hay loop, volver al inicio
+                    console.log('🔄 Secuencia completa, volviendo al inicio (loop activo)');
+                    AppState.sequenceIndex = 0;
+                    playNextInSequence();
+                } else {
+                    // Sin loop, terminar secuencia y buscar siguiente programación
+                    console.log('✅ Secuencia completa (sin loop), terminando reproducción');
+                    console.log('📊 Estado antes de terminar:', {
+                        loop: AppState.currentContent?.loop,
+                        loopType: typeof AppState.currentContent?.loop,
+                        hasLoop: AppState.currentContent?.loop !== undefined
+                    });
+
+                    // Detener reproducción
+                    if (elements.videoPlayer) {
+                        elements.videoPlayer.pause();
+                        elements.videoPlayer.currentTime = 0;
+                    }
+
+                    // Limpiar estado
+                    AppState.sequenceVideos = [];
+                    AppState.sequenceIndex = 0;
+                    AppState.currentContent = null;
+                    AppState.contentType = null;
+                    AppState.isPlaying = false;
+
+                    // Mostrar pantalla de espera
+                    showWaiting('Secuencia completada. Buscando siguiente programación...');
+
+                    // Buscar siguiente programación después de un breve delay
+                    setTimeout(() => {
+                        fetchPlayback();
+                    }, 2000);
+                }
             }
         };
 
-        // Intentar establecer inmediatamente si ya hay metadatos
-        if (elements.videoPlayer.readyState >= 1) { // HAVE_METADATA
-            setTimeOnLoad();
-        } else {
-            // Esperar a que se carguen los metadatos
-            elements.videoPlayer.addEventListener('loadedmetadata', setTimeOnLoad, { once: true });
-            // También intentar en canplay por si acaso
-            elements.videoPlayer.addEventListener('canplay', setTimeOnLoad, { once: true });
-        }
-    }
-
-    elements.videoPlayer.play().catch(error => {
-        console.error('❌ Error al reproducir video en secuencia:', error);
-        // Intentar siguiente video
-        AppState.sequenceIndex++;
-        playNextInSequence();
-    });
-
-    AppState.isPlaying = true;
-
-    // Limpiar event listeners anteriores
-    elements.videoPlayer.onended = null;
-    elements.videoPlayer.onerror = null;
-
-    elements.videoPlayer.onended = () => {
-        console.log(`⏹️ Video ${AppState.sequenceIndex + 1} terminado`);
-        AppState.sequenceIndex++;
-
-        // Verificar si hay más videos en la secuencia
-        if (AppState.sequenceIndex < AppState.sequenceVideos.length) {
-            // Hay más videos, continuar con el siguiente
-            console.log(`▶️ Continuando con siguiente video (${AppState.sequenceIndex + 1}/${AppState.sequenceVideos.length})`);
+        elements.videoPlayer.onerror = () => {
+            console.error('❌ Error en video de secuencia, saltando...');
+            AppState.sequenceIndex++;
             playNextInSequence();
-        } else {
-            // No hay más videos
-            // IMPORTANTE: Verificar explícitamente que loop sea true
-            if (AppState.currentContent && AppState.currentContent.loop === true) {
-                // Si hay loop, volver al inicio
-                console.log('🔄 Secuencia completa, volviendo al inicio (loop activo)');
-                AppState.sequenceIndex = 0;
-                playNextInSequence();
-            } else {
-                // Sin loop, terminar secuencia y buscar siguiente programación
-                console.log('✅ Secuencia completa (sin loop), terminando reproducción');
-                console.log('📊 Estado antes de terminar:', {
-                    loop: AppState.currentContent?.loop,
-                    loopType: typeof AppState.currentContent?.loop,
-                    hasLoop: AppState.currentContent?.loop !== undefined
-                });
-
-                // Detener reproducción
-                if (elements.videoPlayer) {
-                    elements.videoPlayer.pause();
-                    elements.videoPlayer.currentTime = 0;
-                }
-
-                // Limpiar estado
-                AppState.sequenceVideos = [];
-                AppState.sequenceIndex = 0;
-                AppState.currentContent = null;
-                AppState.contentType = null;
-                AppState.isPlaying = false;
-
-                // Mostrar pantalla de espera
-                showWaiting('Secuencia completada. Buscando siguiente programación...');
-
-                // Buscar siguiente programación después de un breve delay
-                setTimeout(() => {
-                    fetchPlayback();
-                }, 2000);
-            }
-        }
-    };
-
-    elements.videoPlayer.onerror = () => {
-        console.error('❌ Error en video de secuencia, saltando...');
-        AppState.sequenceIndex++;
-        playNextInSequence();
-    };
+        };
+    }
 }
 
 // Detener todos los intervalos

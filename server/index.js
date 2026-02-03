@@ -788,6 +788,24 @@ app.get('/api/videos', async (req, res) => {
             videoUrl = `https://s3.us-east-005.backblazeb2.com${videoUrl}`;
           }
           videoUrl = convertToBunnyCDN(videoUrl);
+        } else if (videoUrl && videoUrl.includes('b-cdn.net')) {
+          // Si ya es Bunny CDN, verificar que use el dominio actual
+          try {
+            const currentCdnUrl = process.env.BUNNY_CDN_URL.replace(/\/$/, '');
+            // Extraer hostnames para comparar
+            // Usamos una URL base dummy para el currentCdnUrl si no tiene protocolo, aunque debería tenerlo
+            const currentUrlObj = new URL(currentCdnUrl);
+            const videoUrlObj = new URL(videoUrl);
+
+            if (videoUrlObj.hostname !== currentUrlObj.hostname) {
+              // Reemplazar el hostname viejo con el nuevo
+              const oldHostname = videoUrlObj.hostname;
+              videoUrl = videoUrl.replace(oldHostname, currentUrlObj.hostname);
+              // console.log(`[GET /api/videos] 🔄 URL migrada dynamicamente: ${oldHostname} -> ${currentUrlObj.hostname}`);
+            }
+          } catch (e) {
+            console.warn('[GET /api/videos] Error migrando URL:', e);
+          }
         }
       }
 

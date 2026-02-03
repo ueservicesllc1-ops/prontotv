@@ -56,7 +56,7 @@ Este documento explica cómo configurar las variables de entorno en Railway para
 
 #### BUNNY_CDN_URL
 - **Descripción**: URL base del Bunny CDN
-- **Valor**: `https://prontotv-cdn.b-cdn.net` (o tu URL de Bunny CDN)
+- **Valor**: `https://prontotv2.b-cdn.net` (o tu URL de Bunny CDN)
 - **Requerido**: Solo si `USE_BUNNY_CDN=true`
 
 ### 4. Server Configuration

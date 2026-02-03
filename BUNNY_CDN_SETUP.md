@@ -21,7 +21,7 @@ Esta guía te ayudará a configurar Bunny CDN para servir videos desde Backblaze
 Bunny CDN automáticamente elimina el nombre del bucket de la URL:
 
 - **URL Original (B2)**: `https://s3.us-east-005.backblazeb2.com/mixercur/videos/video.mp4`
-- **URL Bunny CDN**: `https://prontotv-cdn.b-cdn.net/videos/video.mp4`
+- **URL Bunny CDN**: `https://prontotv2.b-cdn.net/videos/video.mp4`
 
 El sistema detecta automáticamente el bucket name (`mixercur`) y lo elimina de la ruta, manteniendo solo la estructura de carpetas y el nombre del archivo.
 
@@ -30,7 +30,7 @@ El sistema detecta automáticamente el bucket name (`mixercur`) y lo elimina de 
 1. Una vez creado el Pull Zone, haz clic en él para editarlo
 2. En la sección **"General"**, verifica:
    - **Origin URL**: Debe apuntar a tu bucket B2
-   - **Hostname**: Anota el hostname que Bunny te proporciona (ej: `prontotv-cdn.b-cdn.net`)
+   - **Hostname**: Anota el hostname que Bunny te proporciona (ej: `prontotv2.b-cdn.net`)
 
 3. En la sección **"Optimization"**:
    - Habilita **"Enable Smart Cache"**
@@ -47,10 +47,10 @@ Agrega las siguientes variables a tu archivo `.env` en la raíz del proyecto:
 ```env
 # Bunny CDN Configuration
 USE_BUNNY_CDN=true
-BUNNY_CDN_URL=https://prontotv-cdn.b-cdn.net
+BUNNY_CDN_URL=https://prontotv2.b-cdn.net
 ```
 
-**Nota**: Reemplaza `prontotv-cdn.b-cdn.net` con el hostname que Bunny CDN te proporcionó.
+**Nota**: Reemplaza `prontotv2.b-cdn.net` con el hostname que Bunny CDN te proporcionó.
 
 ## Paso 4: Verificar la Configuración
 
@@ -68,8 +68,8 @@ https://s3.us-east-005.backblazeb2.com/mixercur/images/logo.png
 
 ### Después (Bunny CDN):
 ```
-https://prontotv-cdn.b-cdn.net/videos/video.mp4
-https://prontotv-cdn.b-cdn.net/images/logo.png
+https://prontotv2.b-cdn.net/videos/video.mp4
+https://prontotv2.b-cdn.net/images/logo.png
 ```
 
 **Nota importante**: Bunny CDN automáticamente elimina el nombre del bucket (`mixercur`) de la URL. El sistema está configurado para hacer esta conversión automáticamente.

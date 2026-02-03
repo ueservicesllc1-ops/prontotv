@@ -29,7 +29,7 @@ const BUCKET_NAME = process.env.B2_BUCKET_NAME || 'mixercur';
 async function uploadFile(fileBuffer, fileName, contentType, folder = '') {
   try {
     const key = folder ? `${folder}/${fileName}` : fileName;
-    
+
     const params = {
       Bucket: BUCKET_NAME,
       Key: key,
@@ -40,21 +40,21 @@ async function uploadFile(fileBuffer, fileName, contentType, folder = '') {
     };
 
     const result = await s3.upload(params).promise();
-    
+
     // Generar URL pública (B2 usa el endpoint S3)
     // result.Location puede tener el formato correcto o necesitamos construirlo
     let publicUrl = result.Location;
-    
+
     // Si la URL no está en el formato correcto, construirla manualmente
     if (!publicUrl || !publicUrl.includes(BUCKET_NAME)) {
       publicUrl = `${B2_CONFIG.endpoint}/${BUCKET_NAME}/${key}`;
     }
-    
+
     // Si está configurado Bunny CDN, convertir la URL
-    const finalUrl = process.env.USE_BUNNY_CDN === 'true' 
-      ? convertToBunnyCDN(publicUrl) 
+    const finalUrl = process.env.USE_BUNNY_CDN === 'true'
+      ? convertToBunnyCDN(publicUrl)
       : publicUrl;
-    
+
     return {
       success: true,
       url: finalUrl,
@@ -104,7 +104,7 @@ async function listFiles(prefix = '') {
     };
 
     const result = await s3.listObjectsV2(params).promise();
-    
+
     return result.Contents.map(item => ({
       key: item.Key,
       size: item.Size,
@@ -125,7 +125,7 @@ async function listFiles(prefix = '') {
  */
 function getPublicUrl(key, useCDN = false) {
   const b2Url = `${B2_CONFIG.endpoint}/${BUCKET_NAME}/${key}`;
-  
+
   // Si se solicita usar CDN y está configurado
   if (useCDN && process.env.BUNNY_CDN_URL) {
     const bunnyUrl = process.env.BUNNY_CDN_URL.replace(/\/$/, ''); // Remover trailing slash
@@ -133,7 +133,7 @@ function getPublicUrl(key, useCDN = false) {
     const filePath = key;
     return `${bunnyUrl}/${filePath}`;
   }
-  
+
   return b2Url;
 }
 
@@ -144,59 +144,59 @@ function getPublicUrl(key, useCDN = false) {
  * 
  * Ejemplo:
  * B2: https://s3.us-east-005.backblazeb2.com/mixercur/videos/video.mp4
- * Bunny: https://prontotv-cdn.b-cdn.net/videos/video.mp4
+ * Bunny: https://prontotv2.b-cdn.net/videos/video.mp4
  */
 function convertToBunnyCDN(b2Url) {
   if (!process.env.BUNNY_CDN_URL) {
     console.log('[Bunny CDN] BUNNY_CDN_URL no configurado');
     return b2Url; // Si no hay CDN configurado, devolver URL original
   }
-  
+
   if (!b2Url || typeof b2Url !== 'string') {
     console.warn('[Bunny CDN] URL inválida:', b2Url);
     return b2Url;
   }
-  
+
   const bunnyUrl = process.env.BUNNY_CDN_URL.replace(/\/$/, ''); // Remover trailing slash
-  
+
   try {
     // Si la URL ya es de Bunny CDN, no convertir
     if (b2Url.includes('b-cdn.net')) {
       console.log('[Bunny CDN] URL ya es de Bunny CDN:', b2Url);
       return b2Url;
     }
-    
+
     // Si la URL es relativa, construir la URL completa de B2 primero
     let fullB2Url = b2Url;
     if (b2Url.startsWith('/')) {
       fullB2Url = `https://s3.us-east-005.backblazeb2.com${b2Url}`;
       console.log('[Bunny CDN] URL relativa convertida a absoluta:', fullB2Url);
     }
-    
+
     // Parsear la URL de B2
     const urlObj = new URL(fullB2Url);
     const pathParts = urlObj.pathname.split('/').filter(part => part); // Filtrar partes vacías
-    
+
     // Buscar el índice del bucket name
     const bucketIndex = pathParts.findIndex(part => part === BUCKET_NAME);
-    
+
     if (bucketIndex === -1) {
       console.warn(`[Bunny CDN] No se encontró el bucket "${BUCKET_NAME}" en la URL: ${fullB2Url}`);
       console.warn(`[Bunny CDN] Path parts:`, pathParts);
       return b2Url; // No se puede convertir, devolver original
     }
-    
+
     // Obtener todo después del bucket name (la ruta del archivo)
     const filePath = pathParts.slice(bucketIndex + 1).join('/');
-    
+
     if (!filePath) {
       console.warn(`[Bunny CDN] No se pudo extraer la ruta del archivo de: ${fullB2Url}`);
       return b2Url;
     }
-    
+
     const bunnyCdnUrl = `${bunnyUrl}/${filePath}`;
     console.log(`[Bunny CDN] ✅ Convertido: ${fullB2Url} -> ${bunnyCdnUrl}`);
-    
+
     return bunnyCdnUrl;
   } catch (error) {
     console.error(`[Bunny CDN] ❌ Error al convertir URL ${b2Url}:`, error.message);
