@@ -831,20 +831,21 @@ app.get('/api/videos', async (req, res) => {
       .orderBy('created_at', 'desc')
       .get();
 
-    const videoData = doc.data();
-    return processVideoItem({ id: doc.id, ...videoData });
-  });
+    const videos = snapshot.docs.map(doc => {
+      const videoData = doc.data();
+      return processVideoItem({ id: doc.id, ...videoData });
+    });
 
-// Save to cache (60 seconds)
-if (videos.length > 0) {
-  cache.set('all_videos', videos, 60);
-}
+    // Save to cache (60 seconds)
+    if (videos.length > 0) {
+      cache.set('all_videos', videos, 60);
+    }
 
-res.json(videos);
+    res.json(videos);
   } catch (error) {
-  console.error('Error fetching videos:', error);
-  res.status(500).json({ error: error.message });
-}
+    console.error('Error fetching videos:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Eliminar video
